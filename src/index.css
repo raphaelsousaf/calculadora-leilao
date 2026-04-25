@@ -1,0 +1,141 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Theme tokens — flip by toggling .dark on <html> */
+:root {
+  --bg:          245 245 247;  /* page background      */
+  --surface:     255 255 255;  /* cards                */
+  --muted:       245 245 247;  /* inputs, mini stats   */
+  --elevated:     29  29  31;  /* hero stat, primary   */
+  --fg:           29  29  31;  /* main text            */
+  --fg-muted:    110 110 115;  /* labels, secondary    */
+  --fg-subtle:   161 161 166;  /* placeholders, hints  */
+  --on-elevated: 255 255 255;  /* text on elevated     */
+  --line:        232 232 237;  /* borders, dividers    */
+
+  --bg-grad-a: #ffffff;
+  --bg-grad-b: #eef2ff;
+  --meta:      #f5f5f7;
+}
+
+html.dark {
+  --bg:          11  11  13;
+  --surface:     20  20  22;
+  --muted:       11  11  13;
+  --elevated:   232 232 237;   /* inverted — Apple-style emphasis */
+  --fg:         232 232 237;
+  --fg-muted:   161 161 166;
+  --fg-subtle:  110 110 115;
+  --on-elevated: 11  11  13;
+  --line:        29  29  31;
+
+  --bg-grad-a: #1a1a1c;
+  --bg-grad-b: #14141a;
+  --meta:      #0b0b0d;
+}
+
+@layer base {
+  html { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+  html.dark { color-scheme: dark; }
+  html:not(.dark) { color-scheme: light; }
+
+  body {
+    @apply bg-page text-fg font-sans;
+    background-image: radial-gradient(1200px 600px at 10% -10%, var(--bg-grad-a) 0%, transparent 60%),
+                      radial-gradient(1000px 500px at 110% 10%, var(--bg-grad-b) 0%, transparent 55%);
+    min-height: 100vh;
+    transition: background-color 0.3s ease, color 0.3s ease;
+  }
+
+  input, button, select, textarea { font-family: inherit; color: inherit; }
+  input[type=number]::-webkit-outer-spin-button,
+  input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  input[type=number] { -moz-appearance: textfield; }
+  input[type=date]::-webkit-calendar-picker-indicator { cursor: pointer; }
+  html.dark input[type=date]::-webkit-calendar-picker-indicator { filter: invert(0.85); }
+}
+
+@layer components {
+  .glass {
+    background: rgb(var(--surface) / 0.7);
+    @apply backdrop-blur-xl border-b border-line shadow-card;
+  }
+  html.dark .glass { background: rgb(var(--surface) / 0.6); }
+
+  .card {
+    @apply bg-surface rounded-2xl border border-line;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.04), 0 8px 24px rgba(0,0,0,0.06);
+  }
+  html.dark .card { box-shadow: none; }
+
+  .label {
+    @apply text-[11px] uppercase tracking-[0.08em] font-medium text-fg-muted;
+  }
+
+  .input {
+    @apply w-full bg-soft border border-line rounded-xl px-4 py-3 text-fg
+           focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent/40
+           transition-all;
+  }
+  .input::placeholder { color: rgb(var(--fg-subtle)); }
+
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-full px-5 py-2.5
+           text-sm font-medium transition-all active:scale-[0.98] select-none
+           disabled:opacity-40 disabled:cursor-not-allowed;
+  }
+  .btn-primary {
+    @apply btn shadow-soft;
+    background: rgb(var(--elevated));
+    color: rgb(var(--on-elevated));
+  }
+  .btn-primary:hover:not(:disabled) { filter: brightness(1.08); }
+
+  .btn-accent {
+    @apply btn bg-accent text-white shadow-soft;
+  }
+  .btn-accent:hover:not(:disabled) { @apply bg-accent-hover; }
+
+  .btn-ghost {
+    @apply btn;
+    background: rgb(var(--line) / 0.6);
+    color: rgb(var(--fg));
+  }
+  .btn-ghost:hover:not(:disabled) { background: rgb(var(--line)); }
+
+  .divider { @apply h-px bg-line; }
+
+  .hero-stat {
+    @apply rounded-2xl p-4 sm:p-5;
+    background: rgb(var(--elevated));
+    color: rgb(var(--on-elevated));
+  }
+  .hero-stat-light {
+    @apply rounded-2xl p-4 sm:p-5 border border-line;
+    background: rgb(var(--muted));
+    color: rgb(var(--fg));
+  }
+
+  .mini-stat {
+    @apply rounded-xl p-3 border border-line;
+    background: rgb(var(--muted));
+  }
+
+  .stat        { @apply flex items-baseline justify-between py-2; }
+  .stat-label  { @apply text-sm text-fg-muted; }
+  .stat-value  { @apply text-base font-medium text-fg tabular-nums; }
+  .stat-strong { @apply text-lg font-semibold text-fg tabular-nums; }
+
+  .icon-btn {
+    @apply w-9 h-9 rounded-full flex items-center justify-center text-fg-muted transition-colors;
+  }
+  .icon-btn:hover { background: rgb(var(--line) / 0.7); color: rgb(var(--fg)); }
+}
+
+@keyframes fadeIn  { from { opacity: 0 } to { opacity: 1 } }
+@keyframes scaleIn { from { opacity: 0; transform: translateY(8px) scale(0.98) } to { opacity: 1; transform: translateY(0) scale(1) } }
+.anim-fade  { animation: fadeIn  0.2s ease-out; }
+.anim-scale { animation: scaleIn 0.25s cubic-bezier(0.2, 0.8, 0.2, 1); }
+
+@media print { body { background: white !important; } .no-print { display: none !important; } }
