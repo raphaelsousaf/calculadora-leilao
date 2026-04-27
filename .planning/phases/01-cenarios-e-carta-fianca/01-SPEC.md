@@ -21,13 +21,13 @@ Hoje, `src/lib/calc.js` recebe `{ arremate, commissionPct, installments }` e ret
 
 2. **Configuração de carta de fiança**: usuário define percentual padrão e pode sobrescrever por cálculo.
    - Current: Settings tem apenas dados de perfil (nome/contato); não há campo de fiança
-   - Target: Settings ganha campo "Carta de fiança padrão (%)" persistido no Supabase; tela principal mostra campo override; default global se vazio: 5%
-   - Acceptance: alterar valor em Settings persiste após reload; alterar override na tela principal não altera o default em Settings; novo cálculo carrega o default de Settings
+   - Target: Settings ganha campo "Carta de fiança padrão (%)" persistido no Supabase; tela principal mostra campo override sempre visível; default global se vazio: **1%**; valor `0` é aceito e desativa efetivamente a carta no cálculo
+   - Acceptance: alterar valor em Settings persiste após reload; alterar override na tela principal não altera o default em Settings; novo cálculo carrega o default de Settings; com `suretyPct=0` a coluna "Carta fiança" da matriz exibe `R$ 0,00` e o "Custo inicial" se reduz a entrada+comissão
 
 3. **Modo "Avaliação → Cenários"**: nova UI permite informar valor de avaliação e ver matriz clicável de cenários.
    - Current: app só aceita valor de arremate como entrada
    - Target: toggle no topo do form com dois modos — "Arremate fixo" (atual) e "Simular por avaliação" (novo); no segundo modo, input de avaliação renderiza tabela com colunas: %, Arrematação, Entrada (25%), Saldo a parcelar, Comissão, Carta fiança, **Custo inicial**, Parcela
-   - Acceptance: com avaliação=R$61.000, comissão=5%, fiança=5%, parcelas=30, a linha de 70% mostra exatamente Arrematação=R$42.700,00, Entrada=R$10.675,00, Saldo=R$32.025,00, Comissão=R$2.135,00, Fiança=R$2.135,00, Custo inicial=R$14.945,00, Parcela=R$1.067,50
+   - Acceptance: com avaliação=R$61.000, comissão=5%, fiança=1%, parcelas=30, a linha de 70% mostra Arrematação=R$42.700,00, Entrada=R$10.675,00, Saldo=R$32.025,00, Comissão=R$2.135,00, Fiança=R$427,00, Custo inicial=R$13.237,00, Parcela=R$1.067,50
 
 4. **Seleção de cenário**: clicar em uma linha da matriz "fixa" o cenário e renderiza o resumo detalhado existente.
    - Current: não existe matriz
@@ -76,7 +76,7 @@ Hoje, `src/lib/calc.js` recebe `{ arremate, commissionPct, installments }` e ret
 - [ ] Matriz renderiza exatamente 13 linhas com os percentuais 30/35/50/55/60/65/70/75/80/85/88/90/100
 - [ ] Linha 70%–85% da matriz tem destaque visual distinto das demais
 - [ ] Clicar em linha da matriz preenche o painel Resumo e habilita PDF/WhatsApp/Salvar
-- [ ] Os 8 valores da linha 70% conferem com o caso de teste (avaliação=R$61.000, com=5%, fia=5%, 30x)
+- [ ] Os 8 valores da linha 70% conferem com o caso de teste (avaliação=R$61.000, com=5%, fia=1%, 30x)
 - [ ] `grep -ri "Total à vista" src/` retorna 0 ocorrências
 - [ ] PDF e WhatsApp exibem "Custo inicial" e incluem linha "Carta de fiança"
 - [ ] Histórico aceita salvar e recarregar um cálculo gerado pelo modo "avaliação → cenários" sem perda de informação do cenário escolhido
