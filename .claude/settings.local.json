@@ -15,7 +15,13 @@
       "Skill(gsd-plan-phase:*)",
       "Skill(gsd-execute-phase)",
       "Skill(gsd-execute-phase:*)",
-      "Bash(git commit -m 'feat\\(01-03\\): add Carta de fiança padrão field to SettingsModal *)"
+      "Bash(git commit -m 'feat\\(01-03\\): add Carta de fiança padrão field to SettingsModal *)",
+      "Bash(npm test *)",
+      "Bash(git -C ../../.. log --all --oneline -25)",
+      "Bash(git -C ../../.. show 6f55f2d --stat 7030cba --stat fbb0689 --stat)",
+      "Bash(git -C ../../.. show fbb0689:src/App.jsx)",
+      "Read(//tmp/**)",
+      "Bash(git commit -m 'ui: restaura menu suspenso do header \\(perfil, configurações, tema\\) *)"
     ]
   }
 }

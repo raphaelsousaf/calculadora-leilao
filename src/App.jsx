@@ -274,9 +274,9 @@ function Calculator({ userId, theme, toggleTheme }) {
         </div>
       </header>
 
-      <main className="max-w-5xl mx-auto px-4 sm:px-6 pt-6 sm:pt-10 grid lg:grid-cols-[1.05fr_1fr] gap-5 sm:gap-7">
+      <main className={`mx-auto px-4 sm:px-6 pt-6 sm:pt-10 grid lg:grid-cols-[minmax(0,1.4fr)_minmax(280px,1fr)] gap-5 sm:gap-7 ${mode === 'scenarios' ? 'max-w-7xl' : 'max-w-6xl'}`}>
         {/* Inputs */}
-        <section className="card p-5 sm:p-7 space-y-6">
+        <section className="card p-5 sm:p-7 space-y-6 min-w-0">
           {/* Mode toggle */}
           <div role="tablist" aria-label="Modo de cálculo" className="inline-flex rounded-lg border border-line bg-soft p-1 gap-1">
             <button
@@ -330,12 +330,12 @@ function Calculator({ userId, theme, toggleTheme }) {
             </div>
           )}
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            <div>
-              <div className="flex justify-between items-baseline">
-                <label className="label">Comissão do leiloeiro</label>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
+            <div className="flex flex-col">
+              <div className="flex justify-between items-baseline gap-2 min-h-[20px]">
+                <label className="label">Comissão</label>
                 <button
-                  className="text-[11px] text-accent hover:text-accent-hover"
+                  className="text-[11px] text-accent hover:text-accent-hover whitespace-nowrap"
                   onClick={() => setCommissionPct(DEFAULT_COMMISSION)}
                   type="button"
                 >Padrão 5%</button>
@@ -343,43 +343,44 @@ function Calculator({ userId, theme, toggleTheme }) {
               <div className="mt-2 relative">
                 <input
                   type="number" min="0" max="100" step="0.01"
-                  className="input !pr-10 tabular-nums"
+                  className="input !pr-10 tabular-nums h-11"
                   value={commissionPct}
                   onChange={e => setCommissionPct(Math.max(0, Math.min(100, Number(e.target.value) || 0)))}
                 />
                 <span className="absolute right-4 top-1/2 -translate-y-1/2 text-fg-subtle">%</span>
               </div>
+              <p className="text-[11px] text-fg-muted mt-1.5">Do leiloeiro</p>
             </div>
 
-            <div>
-              <div className="flex justify-between items-baseline">
-                <label className="label">Carta de fiança (%)</label>
-                <span className="text-[11px] text-fg-muted">Use 0 se o edital não exigir.</span>
+            <div className="flex flex-col">
+              <div className="flex justify-between items-baseline gap-2 min-h-[20px]">
+                <label className="label">Carta de fiança</label>
               </div>
               <div className="mt-2 relative">
                 <input
                   type="number" min="0" max="100" step="0.1"
-                  className="input !pr-10 tabular-nums"
+                  className="input !pr-10 tabular-nums h-11"
                   value={suretyPctStr}
                   placeholder={suretyPlaceholder}
                   onChange={e => { setSuretyPctStr(e.target.value); setSuretyTouched(true) }}
                 />
                 <span className="absolute right-4 top-1/2 -translate-y-1/2 text-fg-subtle">%</span>
               </div>
+              <p className="text-[11px] text-fg-muted mt-1.5">Use 0 se o edital não exigir</p>
             </div>
 
-            <div>
-              <div className="flex justify-between items-baseline">
-                <label className="label">Parcelas (sem juros)</label>
-                <span className="text-[11px] text-fg-muted">até {MAX_INSTALLMENTS}x</span>
+            <div className="flex flex-col">
+              <div className="flex justify-between items-baseline gap-2 min-h-[20px]">
+                <label className="label">Parcelas</label>
+                <span className="text-[11px] text-fg-muted whitespace-nowrap">até {MAX_INSTALLMENTS}x</span>
               </div>
-              <div className="mt-2 flex items-center gap-2">
+              <div className="mt-2 flex items-center gap-1.5">
                 <StepBtn onClick={() => setInstallments(v => Math.max(MIN_INSTALLMENTS, v - 1))} label="Diminuir">
                   <Icon name="minus" className="w-4 h-4" />
                 </StepBtn>
                 <input
                   type="number" min={MIN_INSTALLMENTS} max={MAX_INSTALLMENTS}
-                  className="input text-center tabular-nums"
+                  className="input text-center tabular-nums h-11 px-1"
                   value={installments}
                   onChange={e => setInstallments(Math.max(MIN_INSTALLMENTS, Math.min(MAX_INSTALLMENTS, parseInt(e.target.value) || 1)))}
                 />
@@ -387,6 +388,7 @@ function Calculator({ userId, theme, toggleTheme }) {
                   <Icon name="plus" className="w-4 h-4" />
                 </StepBtn>
               </div>
+              <p className="text-[11px] text-fg-muted mt-1.5">Sem juros</p>
             </div>
           </div>
 
@@ -467,16 +469,21 @@ function Calculator({ userId, theme, toggleTheme }) {
         </section>
 
         {/* Results */}
-        <section className="lg:sticky lg:top-24 self-start">
+        <section className="lg:sticky lg:top-24 self-start min-w-0">
           <div className="card p-5 sm:p-7">
-            <div className="flex items-baseline justify-between">
+            <div className="flex items-baseline justify-between gap-2">
               <h2 className="text-lg font-semibold text-fg">Resumo</h2>
-              {canAct && <span className="text-xs text-fg-muted">{pct(commissionPct)} comissão · {calc.installments}x</span>}
+              {canAct && <span className="text-xs text-fg-muted whitespace-nowrap">{pct(commissionPct)} · {calc.installments}x</span>}
             </div>
 
             {!canAct && mode === 'scenarios' ? (
-              <div className="mt-5 rounded-xl bg-soft border border-line p-6 text-center text-sm text-fg-muted">
-                Selecione um cenário na matriz para ver o resumo.
+              <div className="mt-5 rounded-xl bg-soft border border-line p-6 flex flex-col items-center text-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-surface border border-line flex items-center justify-center text-fg-muted">
+                  <Icon name="calculator" className="w-5 h-5" />
+                </div>
+                <p className="text-sm text-fg-muted leading-relaxed">
+                  Selecione um cenário na matriz<br />para ver o resumo.
+                </p>
               </div>
             ) : (
               <div className="mt-5 space-y-5">
@@ -587,7 +594,7 @@ function ScenariosMatrix({ scenarios, selected, onSelect, hasInput }) {
   } : undefined
 
   return (
-    <div>
+    <div className="min-w-0">
       {/* Desktop / tablet table */}
       <div className="hidden md:block overflow-x-auto rounded-xl border border-line">
         <table className="w-full text-sm tabular-nums">
@@ -745,7 +752,7 @@ function StepBtn({ onClick, label, children }) {
   return (
     <button
       type="button" aria-label={label} onClick={onClick}
-      className="w-10 h-11 rounded-xl bg-soft border border-line text-fg-muted hover:text-fg active:scale-95 transition flex items-center justify-center"
+      className="shrink-0 w-9 h-11 rounded-xl bg-soft border border-line text-fg-muted hover:text-fg active:scale-95 transition flex items-center justify-center"
     >{children}</button>
   )
 }
