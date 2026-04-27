@@ -233,12 +233,21 @@ function Calculator({ userId, theme, toggleTheme }) {
 
           <div className="divider" />
 
-          <details className="group" open={false}>
-            <summary className="flex items-center justify-between cursor-pointer select-none py-1">
-              <span className="label">Detalhes do arremate (opcional)</span>
+          <details className="group rounded-xl border border-line bg-soft/40 hover:bg-soft transition-colors open:bg-surface open:shadow-soft">
+            <summary className="flex items-center justify-between cursor-pointer select-none px-4 py-3.5 list-none">
+              <span className="flex items-center gap-2.5 text-sm font-medium text-fg">
+                <span className="w-7 h-7 rounded-lg bg-surface border border-line flex items-center justify-center text-fg-muted group-hover:text-accent group-open:text-accent transition-colors">
+                  <Icon name="plus" className="w-4 h-4 group-open:hidden" />
+                  <Icon name="minus" className="w-4 h-4 hidden group-open:block" />
+                </span>
+                <span className="flex flex-col">
+                  <span>Adicionar detalhes do arremate</span>
+                  <span className="text-[11px] text-fg-muted font-normal">Comprador, lote, processo, categoria…</span>
+                </span>
+              </span>
               <Icon name="chevron-down" className="w-4 h-4 text-fg-subtle group-open:rotate-180 transition-transform" />
             </summary>
-            <div className="pt-4 space-y-4">
+            <div className="px-4 pb-4 pt-2 space-y-4 border-t border-line">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Field label="Comprador">
                   <input className="input" value={meta.comprador} onChange={e => updateMeta('comprador', e.target.value)} placeholder="Nome completo" />
