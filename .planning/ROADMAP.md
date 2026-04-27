@@ -8,9 +8,17 @@ Aproxima o app do fluxo de decisão real de leiloeiros: partir da avaliação, s
 
 **Goal:** Adicionar carta de fiança como campo de primeira classe e introduzir o modo "Avaliação → Cenários" com matriz de descontos clicável; renomear "Total à vista" para "Custo inicial".
 
-**Requirements:** R4, R5
-**Status:** specced
+**Requirements:** R1, R2, R3, R4, R5
+**Status:** planned
 **Depends on:** —
+**Plans:** 5 plans
+
+Plans:
+- [ ] 01-01-PLAN.md — Estender calc.js com suretyPct + scenarios.js (buildScenarioMatrix, 13 pcts, IDEAL_ZONE) + tokens CSS --zone-ideal-*
+- [ ] 01-02-PLAN.md — Migration SQL `default_surety_pct` + estender data.js (fetchSettings/upsertSettings)
+- [ ] 01-03-PLAN.md — SettingsModal: campo "Carta de fiança padrão (%)"
+- [ ] 01-04-PLAN.md — pdf.js + whatsapp.js renomear "Total à vista" → "Custo inicial" + linha "Carta de fiança"; HistoryModal badge de modo
+- [ ] 01-05-PLAN.md — App.jsx: toggle de modo + override de fiança + matriz responsiva click-to-select + finalizar renomeação
 
 ### Phase 2: viabilidade-e-cronograma
 
