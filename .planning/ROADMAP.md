@@ -25,8 +25,17 @@ Plans:
 **Goal:** Indicador de viabilidade do cenário (faixa, margem vs. revenda esperada) + cronograma de parcelas com datas estimadas exportado em PDF e WhatsApp.
 
 **Requirements:** R6, R7
-**Status:** specced
+**Status:** planned
 **Depends on:** Phase 1
+**Plans:** 6 plans
+
+Plans:
+- [ ] 02-01-PLAN.md — Migration 0002 (viability_t1/t2/t3) + schema.sql + data.js mapping
+- [ ] 02-02-PLAN.md — Refactor scenarios.js (4 tiers + thresholds) + tokens CSS + atualização de testes
+- [ ] 02-03-PLAN.md — schedule.js puro (buildSchedule + addDaysISO) + suite TDD
+- [ ] 02-04-PLAN.md — SettingsModal: 3 inputs de threshold com validação 0<T1<T2<T3≤100
+- [ ] 02-05-PLAN.md — pdf.js: linha de margem + seção cronograma; whatsapp.js: linha margem + resumo cronograma
+- [ ] 02-06-PLAN.md — App.jsx: revenda no grid, intervalo no <details>, badge no Resumo, margem, cronograma desktop/mobile, coluna Margem %
 
 ### Phase 3: polish-visual-e-comparador
 
