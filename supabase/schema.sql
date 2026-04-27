@@ -18,6 +18,7 @@ create table if not exists public.auctioneer_settings (
   telefone    text,
   email       text,
   documento   text,
+  default_surety_pct numeric,
   updated_at  timestamptz not null default now()
 );
 
