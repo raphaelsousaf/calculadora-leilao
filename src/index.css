@@ -14,6 +14,9 @@
   --on-elevated: 255 255 255;  /* text on elevated     */
   --line:        232 232 237;  /* borders, dividers    */
 
+  --zone-ideal-bg: 254 243 199; /* amber-100 — destaque zona ideal (claro)  */
+  --zone-ideal-fg: 120  53  15; /* amber-900 — texto sobre zona ideal       */
+
   --bg-grad-a: #ffffff;
   --bg-grad-b: #eef2ff;
   --meta:      #f5f5f7;
@@ -29,6 +32,9 @@ html.dark {
   --fg-subtle:  110 110 115;
   --on-elevated: 11  11  13;
   --line:        29  29  31;
+
+  --zone-ideal-bg:  69  26   3; /* amber-950 — destaque zona ideal (escuro) */
+  --zone-ideal-fg: 252 211  77; /* amber-300 — texto sobre zona ideal       */
 
   --bg-grad-a: #1a1a1c;
   --bg-grad-b: #14141a;
