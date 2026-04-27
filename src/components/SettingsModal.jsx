@@ -3,10 +3,35 @@ import { Modal } from './Modal'
 
 export function SettingsModal({ open, onClose, settings, onSave }) {
   const [form, setForm] = useState(settings || {})
-  useEffect(() => { if (open) setForm(settings || {}) }, [open, settings])
+  const [defaultSuretyPctStr, setDefaultSuretyPctStr] = useState('')
+  const [suretyError, setSuretyError] = useState('')
+
+  useEffect(() => {
+    if (open) {
+      setForm(settings || {})
+      const v = settings?.defaultSuretyPct
+      setDefaultSuretyPctStr(v === null || v === undefined ? '' : String(v))
+      setSuretyError('')
+    }
+  }, [open, settings])
 
   const update = (k, v) => setForm(f => ({ ...f, [k]: v }))
-  const handleSave = () => { onSave?.(form); onClose?.() }
+
+  const handleSave = () => {
+    const trimmed = defaultSuretyPctStr.trim()
+    let defaultSuretyPct = null
+    if (trimmed !== '') {
+      const n = Number(trimmed)
+      if (Number.isNaN(n) || n < 0 || n > 100) {
+        setSuretyError('Informe um valor entre 0 e 100.')
+        return
+      }
+      defaultSuretyPct = n
+    }
+    setSuretyError('')
+    onSave?.({ ...form, defaultSuretyPct })
+    onClose?.()
+  }
 
   return (
     <Modal
@@ -34,16 +59,30 @@ export function SettingsModal({ open, onClose, settings, onSave }) {
         <Field label="CNPJ ou CPF">
           <input className="input" value={form.documento || ''} onChange={e => update('documento', e.target.value)} placeholder="00.000.000/0000-00" />
         </Field>
+        <Field label="Carta de fiança padrão (%)" sublabel="Use 0 se o edital não exigir.">
+          <input
+            type="number"
+            step="0.1"
+            min="0"
+            max="100"
+            className="input"
+            value={defaultSuretyPctStr}
+            onChange={e => setDefaultSuretyPctStr(e.target.value)}
+            placeholder="1"
+          />
+          {suretyError && <span className="text-sm text-red-500 mt-1 block">{suretyError}</span>}
+        </Field>
       </div>
     </Modal>
   )
 }
 
-function Field({ label, children }) {
+function Field({ label, sublabel, children }) {
   return (
     <label className="block">
       <span className="label block mb-1.5">{label}</span>
       {children}
+      {sublabel && <span className="text-xs text-fg-muted block mt-1">{sublabel}</span>}
     </label>
   )
 }

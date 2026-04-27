@@ -49,22 +49,34 @@ export function buildPDF({ calc, meta, settings }) {
     ['Valor de arremate', brl(calc.bid)],
     ['Entrada (25%)', brl(calc.entry)],
     [`Comissão do leiloeiro (${pct(calc.commissionPct)})`, brl(calc.commission)],
-    ['Total à vista', brl(calc.upfront), true],
+    [`Carta de fiança${calc.suretyPct ? ` (${pct(calc.suretyPct)})` : ''}`, brl(calc.surety ?? 0)],
+    ['Custo inicial', brl(calc.upfront), true, 'Entrada + comissão + carta de fiança'],
     ['Saldo a parcelar (75%)', brl(calc.remaining)],
     [`Parcelas (${calc.installments}x sem juros)`, brl(calc.installment) + ' / mês'],
     ['Total geral', brl(calc.total), true],
   ]
 
+  const rowHeight = (r) => 26 + (r[3] ? 12 : 0)
+  const cardHeight = rows.reduce((acc, r) => acc + rowHeight(r), 0) + 20
+
   doc.setDrawColor('#e8e8ed'); doc.setFillColor('#f5f5f7')
-  doc.roundedRect(M, y, W - 2 * M, rows.length * 26 + 20, 10, 10, 'FD')
+  doc.roundedRect(M, y, W - 2 * M, cardHeight, 10, 10, 'FD')
   y += 22
 
-  rows.forEach(([k, v, strong]) => {
+  rows.forEach((row) => {
+    const [k, v, strong, sublabel] = row
     doc.setFont('helvetica', strong ? 'bold' : 'normal')
     doc.setFontSize(strong ? 11 : 10)
     doc.setTextColor(strong ? '#0b0b0d' : '#424245')
     doc.text(k, M + 16, y)
     doc.text(v, W - M - 16, y, { align: 'right' })
+    if (sublabel) {
+      y += 12
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(8)
+      doc.setTextColor('#6e6e73')
+      doc.text(sublabel, M + 16, y)
+    }
     y += 26
   })
 
