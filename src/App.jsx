@@ -588,10 +588,11 @@ function ScenariosMatrix({ scenarios, selected, onSelect, hasInput }) {
     )
   }
 
-  const idealStyle = (row) => row.isIdeal ? {
-    background: 'rgb(var(--zone-ideal-bg))',
-    color: 'rgb(var(--zone-ideal-fg))',
-  } : undefined
+  const tierStyle = (row) => {
+    const bg = row.tier === 'ideal' ? 'var(--zone-ideal-bg)' : `var(--tier-${row.tier}-bg)`
+    const fg = row.tier === 'ideal' ? 'var(--zone-ideal-fg)' : `var(--tier-${row.tier}-fg)`
+    return { background: `rgb(${bg})`, color: `rgb(${fg})` }
+  }
 
   return (
     <div className="min-w-0">
@@ -627,7 +628,7 @@ function ScenariosMatrix({ scenarios, selected, onSelect, hasInput }) {
                       onSelect(row.pct)
                     }
                   }}
-                  style={idealStyle(row)}
+                  style={tierStyle(row)}
                   className={`border-t border-line cursor-pointer transition-colors hover:brightness-95 ${isSel ? 'ring-2 ring-accent ring-inset' : ''}`}
                 >
                   <td className="px-3 py-2 font-medium">{row.pct}%</td>
@@ -655,7 +656,7 @@ function ScenariosMatrix({ scenarios, selected, onSelect, hasInput }) {
               type="button"
               aria-pressed={isSel}
               onClick={() => onSelect(row.pct)}
-              style={idealStyle(row)}
+              style={tierStyle(row)}
               className={`w-full text-left rounded-xl border border-line p-4 transition-colors hover:brightness-95 ${isSel ? 'ring-2 ring-accent' : ''}`}
             >
               <div className="flex items-baseline justify-between mb-3">
