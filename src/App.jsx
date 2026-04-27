@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Icon } from './components/Icon'
 import { Modal } from './components/Modal'
 import { SettingsModal } from './components/SettingsModal'
@@ -164,8 +164,10 @@ function Calculator({ userId, theme, toggleTheme }) {
           <div className="flex items-center gap-1">
             <IconBtn label={theme === 'dark' ? 'Modo claro' : 'Modo escuro'} onClick={toggleTheme} icon={theme === 'dark' ? 'sun' : 'moon'} />
             <IconBtn label="Histórico" onClick={() => setOpenHistory(true)} icon="history" />
-            <IconBtn label="Configurações" onClick={() => setOpenSettings(true)} icon="settings" />
-            <IconBtn label="Perfil" onClick={() => setOpenProfile(true)} icon="user" />
+            <UserMenu
+              onSettings={() => setOpenSettings(true)}
+              onProfile={() => setOpenProfile(true)}
+            />
           </div>
         </div>
       </header>
@@ -390,6 +392,62 @@ function Calculator({ userId, theme, toggleTheme }) {
         </div>
       )}
     </div>
+  )
+}
+
+function UserMenu({ onSettings, onProfile }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+
+  useEffect(() => {
+    if (!open) return
+    const onDoc = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    const onKey = (e) => { if (e.key === 'Escape') setOpen(false) }
+    document.addEventListener('mousedown', onDoc)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDoc)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [open])
+
+  const pick = (fn) => { setOpen(false); fn() }
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        aria-label="Menu do usuário"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        className="icon-btn flex items-center gap-0.5"
+      >
+        <Icon name="user" className="w-[18px] h-[18px]" />
+        <Icon name="chevron-down" className={`w-3 h-3 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <div
+          role="menu"
+          className="absolute right-0 mt-2 w-48 rounded-xl border border-line bg-bg shadow-soft overflow-hidden z-40"
+        >
+          <MenuItem icon="settings" label="Configurações" onClick={() => pick(onSettings)} />
+          <MenuItem icon="user" label="Perfil" onClick={() => pick(onProfile)} />
+        </div>
+      )}
+    </div>
+  )
+}
+
+function MenuItem({ icon, label, onClick }) {
+  return (
+    <button
+      role="menuitem"
+      onClick={onClick}
+      className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-fg hover:bg-soft transition text-left"
+    >
+      <Icon name={icon} className="w-4 h-4 text-fg-muted" />
+      {label}
+    </button>
   )
 }
 
