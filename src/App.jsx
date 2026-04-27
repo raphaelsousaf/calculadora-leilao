@@ -432,13 +432,13 @@ function UserMenu({ theme, onToggleTheme, onSettings, onProfile }) {
           className="absolute right-0 mt-2 w-52 rounded-xl border border-line shadow-soft overflow-hidden z-40"
           style={{ background: 'rgb(var(--surface))' }}
         >
+          <MenuItem icon="user" label="Perfil" onClick={() => pick(onProfile)} />
+          <MenuItem icon="settings" label="Configurações" onClick={() => pick(onSettings)} />
           <MenuItem
             icon={theme === 'dark' ? 'sun' : 'moon'}
             label={theme === 'dark' ? 'Modo claro' : 'Modo escuro'}
             onClick={() => pick(onToggleTheme)}
           />
-          <MenuItem icon="settings" label="Configurações" onClick={() => pick(onSettings)} />
-          <MenuItem icon="user" label="Perfil" onClick={() => pick(onProfile)} />
         </div>
       )}
     </div>
