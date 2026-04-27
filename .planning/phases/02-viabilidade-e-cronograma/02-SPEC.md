@@ -21,8 +21,8 @@ Após a Fase 1, o usuário consegue ver múltiplos cenários, mas precisa decidi
 
 2. **Margem potencial via valor de revenda**: usuário informa expectativa de revenda; app calcula margem bruta.
    - Current: não há campo de revenda
-   - Target: campo opcional "Valor esperado de revenda" no form principal; quando preenchido, painel Resumo mostra `Margem bruta = revenda − arremate − custo inicial − soma de parcelas` em R$ e %; matriz mostra coluna "Margem %"
-   - Acceptance: com avaliação=R$61.000, lance=70%, revenda=R$58.000 → margem bruta calculada e exibida em R$ e %; sem revenda preenchido, campos de margem ficam ocultos (não exibe "—" ou zero)
+   - Target: campo opcional "Valor esperado de revenda" no form principal; quando preenchido, painel Resumo mostra `Margem bruta = revenda − (arremate + comissão + carta de fiança)` (i.e., revenda menos total efetivo pago, sem dupla contagem do saldo) em R$ e % (`% = margem / revenda × 100`); matriz mostra coluna "Margem %"
+   - Acceptance: com avaliação=R$61.000, lance=70% (arremate=R$42.700, comissão=R$2.135, fiança=R$320,25), revenda=R$58.000 → total_pago=R$45.155,25, margem=R$12.844,75, margem%≈22,15%; sem revenda preenchido, campos de margem ficam ocultos (não exibe "—" ou zero)
 
 3. **Cronograma de parcelas com datas**: parcelas ganham datas estimadas a partir da data do leilão.
    - Current: app exibe apenas valor da parcela e quantidade
@@ -69,7 +69,7 @@ Após a Fase 1, o usuário consegue ver múltiplos cenários, mas precisa decidi
 - [ ] Os 4 thresholds default (70/85/95) são configuráveis em Settings e persistem
 - [ ] Alterar threshold em Settings reclassifica cenários sem reload
 - [ ] Campo "Valor esperado de revenda" é opcional e fica oculto/sem efeito quando vazio
-- [ ] Margem bruta = revenda − arremate − custo inicial − total parcelas, exibida em R$ e %
+- [ ] Margem bruta = revenda − (arremate + comissão + carta de fiança), exibida em R$ e %
 - [ ] Coluna "Margem %" aparece na matriz somente quando revenda > 0
 - [ ] Painel cronograma exige data do leilão preenchida; sem ela, exibe placeholder
 - [ ] Cronograma com N=30 e intervalo=30 produz N linhas com datas progressivas corretas
