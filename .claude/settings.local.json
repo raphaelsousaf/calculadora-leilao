@@ -4,7 +4,18 @@
       "Bash(npm create *)",
       "Bash(npm install *)",
       "Bash(npm run *)",
-      "Bash(powershell -Command 'Get-NetTCPConnection -LocalPort 5173,5174,5175 -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique | ForEach-Object { Stop-Process -Id $_ -Force -ErrorAction SilentlyContinue }; Start-Sleep -Seconds 1; '\\\\''done'\\\\''')"
+      "Bash(powershell -Command 'Get-NetTCPConnection -LocalPort 5173,5174,5175 -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique | ForEach-Object { Stop-Process -Id $_ -Force -ErrorAction SilentlyContinue }; Start-Sleep -Seconds 1; '\\\\''done'\\\\''')",
+      "Skill(gsd-spec-phase)",
+      "Skill(gsd-spec-phase:*)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Skill(gsd-discuss-phase)",
+      "Skill(gsd-discuss-phase:*)",
+      "Skill(gsd-plan-phase)",
+      "Skill(gsd-plan-phase:*)",
+      "Skill(gsd-execute-phase)",
+      "Skill(gsd-execute-phase:*)",
+      "Bash(git commit -m 'feat\\(01-03\\): add Carta de fiança padrão field to SettingsModal *)"
     ]
   }
 }

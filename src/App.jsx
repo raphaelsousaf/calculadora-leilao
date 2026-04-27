@@ -7,6 +7,7 @@ import { HistoryModal } from './components/HistoryModal'
 import { ProfileModal } from './components/ProfileModal'
 import { AuthScreen } from './components/AuthScreen'
 import { calculate } from './lib/calc'
+import { buildScenarioMatrix, IDEAL_ZONE } from './lib/scenarios'
 import { brl, formatBRLInput, parseBRL, pct } from './lib/format'
 import { openPDF } from './lib/pdf'
 import { useTheme } from './lib/theme'
@@ -24,6 +25,8 @@ const EMPTY_META = {
   comprador: '', lote: '', processo: '',
   categoria: '', subcategoria: '', descricao: '', dataLeilao: '',
 }
+
+const SURETY_FALLBACK = 1
 
 export default function App() {
   const { user, loading: authLoading } = useAuth()
@@ -43,9 +46,16 @@ export default function App() {
 }
 
 function Calculator({ userId, theme, toggleTheme }) {
+  const [mode, setMode] = useState(() => {
+    try { return localStorage.getItem('calc.lastMode') || 'fixed' } catch { return 'fixed' }
+  })
   const [arremateStr, setArremateStr] = useState('')
+  const [appraisalStr, setAppraisalStr] = useState('')
+  const [selectedDiscountPct, setSelectedDiscountPct] = useState(null)
   const [commissionPct, setCommissionPct] = useState(DEFAULT_COMMISSION)
   const [installments, setInstallments] = useState(DEFAULT_INSTALLMENTS)
+  const [suretyPctStr, setSuretyPctStr] = useState('')
+  const [suretyTouched, setSuretyTouched] = useState(false)
   const [meta, setMeta] = useState(EMPTY_META)
 
   const [history, setHistory] = useState([])
@@ -61,6 +71,10 @@ function Calculator({ userId, theme, toggleTheme }) {
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(''), 2200) }
 
   useEffect(() => {
+    try { localStorage.setItem('calc.lastMode', mode) } catch {}
+  }, [mode])
+
+  useEffect(() => {
     let cancelled = false
     Promise.all([fetchCalculations(userId), fetchSettings(userId)])
       .then(([h, s]) => {
@@ -72,6 +86,17 @@ function Calculator({ userId, theme, toggleTheme }) {
     return () => { cancelled = true }
   }, [userId])
 
+  // Sync surety default from Settings (only once, while user hasn't touched the field)
+  useEffect(() => {
+    if (suretyTouched) return
+    if (suretyPctStr !== '') return
+    if (settings && settings.defaultSuretyPct != null) {
+      setSuretyPctStr(String(settings.defaultSuretyPct))
+    } else if (settings) {
+      setSuretyPctStr(String(SURETY_FALLBACK))
+    }
+  }, [settings, suretyTouched, suretyPctStr])
+
   useEffect(() => {
     const url = new URL(window.location.href)
     if (url.searchParams.get('recover') === '1') {
@@ -81,12 +106,48 @@ function Calculator({ userId, theme, toggleTheme }) {
     }
   }, [])
 
-  const arremate = useMemo(() => parseBRL(arremateStr), [arremateStr])
+  const suretyPct = useMemo(() => {
+    if (suretyPctStr.trim() === '') return settings?.defaultSuretyPct ?? SURETY_FALLBACK
+    const n = Number(suretyPctStr)
+    return Number.isFinite(n) ? n : 0
+  }, [suretyPctStr, settings])
+
+  const appraisal = useMemo(() => parseBRL(appraisalStr), [appraisalStr])
+
+  const effectiveArremate = useMemo(() => {
+    if (mode === 'scenarios') {
+      if (selectedDiscountPct == null) return 0
+      return appraisal * (selectedDiscountPct / 100)
+    }
+    return parseBRL(arremateStr)
+  }, [mode, arremateStr, appraisal, selectedDiscountPct])
+
   const calc = useMemo(
-    () => calculate({ arremate, commissionPct, installments }),
-    [arremate, commissionPct, installments],
+    () => calculate({ arremate: effectiveArremate, commissionPct, suretyPct, installments }),
+    [effectiveArremate, commissionPct, suretyPct, installments],
   )
-  const hasValue = arremate > 0
+
+  const scenarios = useMemo(() => buildScenarioMatrix({
+    appraisal,
+    commissionPct,
+    suretyPct,
+    installments,
+  }), [appraisal, commissionPct, suretyPct, installments])
+
+  const hasValue = effectiveArremate > 0
+  const canAct = mode === 'fixed' ? hasValue : (selectedDiscountPct != null && appraisal > 0)
+
+  const switchMode = (next) => {
+    if (next === mode) return
+    if (next === 'scenarios') {
+      setArremateStr('')
+      setSelectedDiscountPct(null)
+    } else {
+      setAppraisalStr('')
+      setSelectedDiscountPct(null)
+    }
+    setMode(next)
+  }
 
   const updateMeta = (k, v) => setMeta(m => {
     const next = { ...m, [k]: v }
@@ -94,9 +155,24 @@ function Calculator({ userId, theme, toggleTheme }) {
     return next
   })
 
+  const buildSavePayload = () => {
+    const base = {
+      ...calc,
+      mode,
+      suretyPct,
+      surety: calc.surety,
+    }
+    if (mode === 'scenarios') {
+      base.appraisal = appraisal
+      base.discountPct = selectedDiscountPct
+    }
+    return base
+  }
+
   const handleSave = async () => {
     try {
-      const item = await insertCalculation(userId, { calc, meta })
+      const payload = buildSavePayload()
+      const item = await insertCalculation(userId, { calc: payload, meta })
       setHistory(h => [item, ...h])
       setOpenSave(false)
       showToast('Cálculo salvo')
@@ -106,10 +182,29 @@ function Calculator({ userId, theme, toggleTheme }) {
   }
 
   const handleLoad = (item) => {
-    setArremateStr(formatBRLInput(String(Math.round((item.calc.bid || 0) * 100))))
-    setCommissionPct(item.calc.commissionPct ?? DEFAULT_COMMISSION)
-    setInstallments(item.calc.installments ?? DEFAULT_INSTALLMENTS)
+    const c = item.calc || {}
+
+    // Legados
+    setCommissionPct(c.commissionPct ?? DEFAULT_COMMISSION)
+    setInstallments(c.installments ?? DEFAULT_INSTALLMENTS)
     setMeta({ ...EMPTY_META, ...item.meta })
+
+    // Novos campos (D-06) — backwards-compat
+    const loadedMode = c.mode ?? 'fixed'
+    setMode(loadedMode)
+    setSuretyPctStr(c.suretyPct != null ? String(c.suretyPct) : '0')
+    setSuretyTouched(true)
+
+    if (loadedMode === 'scenarios') {
+      setAppraisalStr(formatBRLInput(String(Math.round((c.appraisal || 0) * 100))))
+      setSelectedDiscountPct(c.discountPct ?? null)
+      setArremateStr('')
+    } else {
+      setArremateStr(formatBRLInput(String(Math.round((c.bid || 0) * 100))))
+      setAppraisalStr('')
+      setSelectedDiscountPct(null)
+    }
+
     showToast('Cálculo carregado')
   }
 
@@ -133,19 +228,25 @@ function Calculator({ userId, theme, toggleTheme }) {
   }
 
   const handlePDF = () => {
-    if (!hasValue) return showToast('Informe o valor de arremate')
+    if (!canAct) return showToast(mode === 'scenarios' ? 'Selecione um cenário' : 'Informe o valor de arremate')
     openPDF({ calc, meta, settings })
   }
   const handleWA = () => {
-    if (!hasValue) return showToast('Informe o valor de arremate')
+    if (!canAct) return showToast(mode === 'scenarios' ? 'Selecione um cenário' : 'Informe o valor de arremate')
     setOpenWA(true)
   }
 
   const handleReset = () => {
-    setArremateStr(''); setCommissionPct(DEFAULT_COMMISSION); setInstallments(DEFAULT_INSTALLMENTS); setMeta(EMPTY_META)
+    setArremateStr('')
+    setAppraisalStr('')
+    setSelectedDiscountPct(null)
+    setCommissionPct(DEFAULT_COMMISSION)
+    setInstallments(DEFAULT_INSTALLMENTS)
+    setMeta(EMPTY_META)
   }
 
   const subcats = CATEGORIES[meta.categoria] || []
+  const suretyPlaceholder = String(settings?.defaultSuretyPct ?? SURETY_FALLBACK)
 
   return (
     <div className="min-h-screen pb-20">
@@ -173,22 +274,60 @@ function Calculator({ userId, theme, toggleTheme }) {
       <main className="max-w-5xl mx-auto px-4 sm:px-6 pt-6 sm:pt-10 grid lg:grid-cols-[1.05fr_1fr] gap-5 sm:gap-7">
         {/* Inputs */}
         <section className="card p-5 sm:p-7 space-y-6">
-          <div>
-            <label className="label">Valor de arremate</label>
-            <div className="mt-2 relative">
-              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-fg-subtle text-lg">R$</span>
-              <input
-                inputMode="decimal"
-                className="input !pl-12 !py-4 text-3xl sm:text-4xl font-semibold tabular-nums"
-                value={arremateStr}
-                onChange={e => setArremateStr(formatBRLInput(e.target.value))}
-                placeholder="0,00"
-                autoFocus
-              />
-            </div>
+          {/* Mode toggle */}
+          <div role="tablist" aria-label="Modo de cálculo" className="inline-flex rounded-lg border border-line bg-soft p-1 gap-1">
+            <button
+              role="tab"
+              type="button"
+              aria-selected={mode === 'fixed'}
+              onClick={() => switchMode('fixed')}
+              className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${mode === 'fixed' ? 'bg-accent text-white shadow-soft' : 'text-fg-muted hover:text-fg'}`}
+            >Arremate fixo</button>
+            <button
+              role="tab"
+              type="button"
+              aria-selected={mode === 'scenarios'}
+              onClick={() => switchMode('scenarios')}
+              className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${mode === 'scenarios' ? 'bg-accent text-white shadow-soft' : 'text-fg-muted hover:text-fg'}`}
+            >Simular por avaliação</button>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+          {mode === 'fixed' ? (
+            <div>
+              <label className="label">Valor de arremate</label>
+              <div className="mt-2 relative">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-fg-subtle text-lg">R$</span>
+                <input
+                  inputMode="decimal"
+                  className="input !pl-12 !py-4 text-3xl sm:text-4xl font-semibold tabular-nums"
+                  value={arremateStr}
+                  onChange={e => setArremateStr(formatBRLInput(e.target.value))}
+                  placeholder="0,00"
+                  autoFocus
+                />
+              </div>
+            </div>
+          ) : (
+            <div>
+              <label className="label">Valor de avaliação</label>
+              <div className="mt-2 relative">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-fg-subtle text-lg">R$</span>
+                <input
+                  inputMode="decimal"
+                  className="input !pl-12 !py-4 text-3xl sm:text-4xl font-semibold tabular-nums"
+                  value={appraisalStr}
+                  onChange={e => {
+                    setAppraisalStr(formatBRLInput(e.target.value))
+                    setSelectedDiscountPct(null)
+                  }}
+                  placeholder="0,00"
+                  autoFocus
+                />
+              </div>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
             <div>
               <div className="flex justify-between items-baseline">
                 <label className="label">Comissão do leiloeiro</label>
@@ -204,6 +343,23 @@ function Calculator({ userId, theme, toggleTheme }) {
                   className="input !pr-10 tabular-nums"
                   value={commissionPct}
                   onChange={e => setCommissionPct(Math.max(0, Math.min(100, Number(e.target.value) || 0)))}
+                />
+                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-fg-subtle">%</span>
+              </div>
+            </div>
+
+            <div>
+              <div className="flex justify-between items-baseline">
+                <label className="label">Carta de fiança (%)</label>
+                <span className="text-[11px] text-fg-muted">Use 0 se o edital não exigir.</span>
+              </div>
+              <div className="mt-2 relative">
+                <input
+                  type="number" min="0" max="100" step="0.1"
+                  className="input !pr-10 tabular-nums"
+                  value={suretyPctStr}
+                  placeholder={suretyPlaceholder}
+                  onChange={e => { setSuretyPctStr(e.target.value); setSuretyTouched(true) }}
                 />
                 <span className="absolute right-4 top-1/2 -translate-y-1/2 text-fg-subtle">%</span>
               </div>
@@ -230,6 +386,15 @@ function Calculator({ userId, theme, toggleTheme }) {
               </div>
             </div>
           </div>
+
+          {mode === 'scenarios' && (
+            <ScenariosMatrix
+              scenarios={scenarios}
+              selected={selectedDiscountPct}
+              onSelect={setSelectedDiscountPct}
+              hasInput={appraisal > 0}
+            />
+          )}
 
           <div className="divider" />
 
@@ -292,7 +457,7 @@ function Calculator({ userId, theme, toggleTheme }) {
           <div className="flex flex-wrap gap-2 pt-1">
             <button className="btn-ghost" onClick={handleReset}>Limpar</button>
             <div className="flex-1" />
-            <button className="btn-ghost" onClick={() => setOpenSave(true)} disabled={!hasValue}>
+            <button className="btn-ghost" onClick={() => setOpenSave(true)} disabled={!canAct}>
               <Icon name="save" className="w-4 h-4" /> Salvar
             </button>
           </div>
@@ -303,46 +468,56 @@ function Calculator({ userId, theme, toggleTheme }) {
           <div className="card p-5 sm:p-7">
             <div className="flex items-baseline justify-between">
               <h2 className="text-lg font-semibold text-fg">Resumo</h2>
-              {hasValue && <span className="text-xs text-fg-muted">{pct(commissionPct)} comissão · {calc.installments}x</span>}
+              {canAct && <span className="text-xs text-fg-muted">{pct(commissionPct)} comissão · {calc.installments}x</span>}
             </div>
 
-            <div className="mt-5 space-y-5">
-              <div className="hero-stat">
-                <div className="text-[11px] uppercase tracking-[0.08em] font-medium opacity-60">Total à vista (no dia)</div>
-                <div className="text-3xl sm:text-[34px] font-semibold tabular-nums mt-1 leading-tight">{brl(calc.upfront)}</div>
-                <div className="text-xs mt-1.5 opacity-60">Entrada 25% + comissão {pct(commissionPct)}</div>
+            {!canAct && mode === 'scenarios' ? (
+              <div className="mt-5 rounded-xl bg-soft border border-line p-6 text-center text-sm text-fg-muted">
+                Selecione um cenário na matriz para ver o resumo.
               </div>
+            ) : (
+              <div className="mt-5 space-y-5">
+                <div className="hero-stat">
+                  <div className="text-[11px] uppercase tracking-[0.08em] font-medium opacity-60">Custo inicial</div>
+                  <div className="text-3xl sm:text-[34px] font-semibold tabular-nums mt-1 leading-tight">{brl(calc.upfront)}</div>
+                  <div className="text-xs mt-1.5 opacity-60">Entrada + comissão + carta de fiança</div>
+                </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <MiniStat label="Entrada (25%)" value={brl(calc.entry)} />
-                <MiniStat label={`Comissão (${pct(commissionPct)})`} value={brl(calc.commission)} />
+                <div className="grid grid-cols-2 gap-3">
+                  <MiniStat label="Entrada (25%)" value={brl(calc.entry)} />
+                  <MiniStat label={`Comissão (${pct(commissionPct)})`} value={brl(calc.commission)} />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <MiniStat label={`Carta de fiança (${pct(suretyPct)})`} value={brl(calc.surety)} />
+                  <MiniStat label="Saldo a parcelar" value={brl(calc.remaining)} />
+                </div>
+
+                <div className="divider" />
+
+                <div className="hero-stat-light">
+                  <div className="text-[11px] uppercase tracking-[0.08em] font-medium text-fg-muted">Parcela ({calc.installments}x sem juros)</div>
+                  <div className="text-3xl sm:text-[34px] font-semibold tabular-nums mt-1 leading-tight text-fg">{brl(calc.installment)}</div>
+                  <div className="text-xs mt-1.5 text-fg-muted">Saldo de {brl(calc.remaining)} parcelado</div>
+                </div>
+
+                <div className="divider" />
+
+                <div className="stat">
+                  <span className="stat-label">Valor de arremate</span>
+                  <span className="stat-value">{brl(calc.bid)}</span>
+                </div>
+                <div className="stat">
+                  <span className="stat-label">Total geral</span>
+                  <span className="stat-strong">{brl(calc.total)}</span>
+                </div>
               </div>
-
-              <div className="divider" />
-
-              <div className="hero-stat-light">
-                <div className="text-[11px] uppercase tracking-[0.08em] font-medium text-fg-muted">Parcela ({calc.installments}x sem juros)</div>
-                <div className="text-3xl sm:text-[34px] font-semibold tabular-nums mt-1 leading-tight text-fg">{brl(calc.installment)}</div>
-                <div className="text-xs mt-1.5 text-fg-muted">Saldo de {brl(calc.remaining)} parcelado</div>
-              </div>
-
-              <div className="divider" />
-
-              <div className="stat">
-                <span className="stat-label">Valor de arremate</span>
-                <span className="stat-value">{brl(calc.bid)}</span>
-              </div>
-              <div className="stat">
-                <span className="stat-label">Total geral</span>
-                <span className="stat-strong">{brl(calc.total)}</span>
-              </div>
-            </div>
+            )}
 
             <div className="mt-7 grid grid-cols-2 gap-2">
-              <button className="btn-primary" onClick={handlePDF} disabled={!hasValue}>
+              <button className="btn-primary" onClick={handlePDF} disabled={!canAct}>
                 <Icon name="pdf" className="w-4 h-4" /> PDF
               </button>
-              <button className="btn-accent" onClick={handleWA} disabled={!hasValue}>
+              <button className="btn-accent" onClick={handleWA} disabled={!canAct}>
                 <Icon name="whatsapp" className="w-4 h-4" /> WhatsApp
               </button>
             </div>
@@ -371,8 +546,9 @@ function Calculator({ userId, theme, toggleTheme }) {
       >
         <p className="text-sm text-fg-muted mb-4">Revise as informações antes de salvar no histórico.</p>
         <div className="rounded-xl bg-soft p-4 space-y-1.5 text-sm border border-line">
+          <Row k="Modo" v={mode === 'scenarios' ? `Cenários (${selectedDiscountPct ?? '—'}%)` : 'Arremate fixo'} />
           <Row k="Arremate" v={brl(calc.bid)} />
-          <Row k="Total à vista" v={brl(calc.upfront)} strong />
+          <Row k="Custo inicial" v={brl(calc.upfront)} strong />
           <Row k={`Parcela (${calc.installments}x)`} v={brl(calc.installment)} />
           {meta.comprador && <Row k="Comprador" v={meta.comprador} />}
           {meta.lote && <Row k="Lote" v={meta.lote} />}
@@ -389,6 +565,105 @@ function Calculator({ userId, theme, toggleTheme }) {
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+function ScenariosMatrix({ scenarios, selected, onSelect, hasInput }) {
+  if (!hasInput) {
+    return (
+      <div className="rounded-xl bg-soft border border-line p-6 text-center text-sm text-fg-muted">
+        Informe o valor de avaliação para ver os 13 cenários.
+      </div>
+    )
+  }
+
+  const idealStyle = (row) => row.isIdeal ? {
+    background: 'rgb(var(--zone-ideal-bg))',
+    color: 'rgb(var(--zone-ideal-fg))',
+  } : undefined
+
+  return (
+    <div>
+      {/* Desktop / tablet table */}
+      <div className="hidden md:block overflow-x-auto rounded-xl border border-line">
+        <table className="w-full text-sm tabular-nums">
+          <caption className="sr-only">Cenários de desconto</caption>
+          <thead className="bg-soft text-fg-muted text-[11px] uppercase tracking-[0.06em]">
+            <tr>
+              <th className="text-left px-3 py-2.5">%</th>
+              <th className="text-right px-3 py-2.5">Arrematação</th>
+              <th className="text-right px-3 py-2.5">Entrada</th>
+              <th className="text-right px-3 py-2.5">Saldo</th>
+              <th className="text-right px-3 py-2.5">Comissão</th>
+              <th className="text-right px-3 py-2.5">Carta fiança</th>
+              <th className="text-right px-3 py-2.5">Custo inicial</th>
+              <th className="text-right px-3 py-2.5">Parcela</th>
+            </tr>
+          </thead>
+          <tbody>
+            {scenarios.map((row) => {
+              const isSel = row.pct === selected
+              return (
+                <tr
+                  key={row.pct}
+                  role="button"
+                  tabIndex={0}
+                  aria-pressed={isSel}
+                  onClick={() => onSelect(row.pct)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      onSelect(row.pct)
+                    }
+                  }}
+                  style={idealStyle(row)}
+                  className={`border-t border-line cursor-pointer transition-colors hover:brightness-95 ${isSel ? 'ring-2 ring-accent ring-inset' : ''}`}
+                >
+                  <td className="px-3 py-2 font-medium">{row.pct}%</td>
+                  <td className="px-3 py-2 text-right">{brl(row.bid)}</td>
+                  <td className="px-3 py-2 text-right">{brl(row.entry)}</td>
+                  <td className="px-3 py-2 text-right">{brl(row.remaining)}</td>
+                  <td className="px-3 py-2 text-right">{brl(row.commission)}</td>
+                  <td className="px-3 py-2 text-right">{brl(row.surety)}</td>
+                  <td className="px-3 py-2 text-right font-semibold">{brl(row.upfront)}</td>
+                  <td className="px-3 py-2 text-right">{brl(row.installment)}</td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Mobile cards */}
+      <div className="md:hidden space-y-3">
+        {scenarios.map((row) => {
+          const isSel = row.pct === selected
+          return (
+            <button
+              key={row.pct}
+              type="button"
+              aria-pressed={isSel}
+              onClick={() => onSelect(row.pct)}
+              style={idealStyle(row)}
+              className={`w-full text-left rounded-xl border border-line p-4 transition-colors hover:brightness-95 ${isSel ? 'ring-2 ring-accent' : ''}`}
+            >
+              <div className="flex items-baseline justify-between mb-3">
+                <span className="text-2xl font-bold tabular-nums">{row.pct}%</span>
+                <span className="text-sm font-semibold tabular-nums">{brl(row.bid)}</span>
+              </div>
+              <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs">
+                <span className="opacity-70">Entrada</span><span className="text-right tabular-nums">{brl(row.entry)}</span>
+                <span className="opacity-70">Saldo</span><span className="text-right tabular-nums">{brl(row.remaining)}</span>
+                <span className="opacity-70">Comissão</span><span className="text-right tabular-nums">{brl(row.commission)}</span>
+                <span className="opacity-70">Carta fiança</span><span className="text-right tabular-nums">{brl(row.surety)}</span>
+                <span className="opacity-70 font-semibold">Custo inicial</span><span className="text-right tabular-nums font-semibold">{brl(row.upfront)}</span>
+                <span className="opacity-70">Parcela</span><span className="text-right tabular-nums">{brl(row.installment)}</span>
+              </div>
+            </button>
+          )
+        })}
+      </div>
     </div>
   )
 }
