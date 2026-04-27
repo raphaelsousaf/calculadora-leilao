@@ -23,11 +23,17 @@ export async function updateProfile(userId, patch) {
 export async function fetchSettings(userId) {
   const { data, error } = await supabase
     .from('auctioneer_settings')
-    .select('nome, telefone, email, documento')
+    .select('nome, telefone, email, documento, default_surety_pct')
     .eq('user_id', userId)
     .maybeSingle()
   if (error) throw error
-  return data || {}
+  return data ? {
+    nome: data.nome,
+    telefone: data.telefone,
+    email: data.email,
+    documento: data.documento,
+    defaultSuretyPct: data.default_surety_pct,
+  } : {}
 }
 
 export async function upsertSettings(userId, s) {
@@ -37,6 +43,7 @@ export async function upsertSettings(userId, s) {
     telefone: s.telefone ?? null,
     email: s.email ?? null,
     documento: s.documento ?? null,
+    default_surety_pct: s.defaultSuretyPct ?? null,
   }
   const { error } = await supabase
     .from('auctioneer_settings')
