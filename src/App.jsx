@@ -162,9 +162,10 @@ function Calculator({ userId, theme, toggleTheme }) {
             </div>
           </div>
           <div className="flex items-center gap-1">
-            <IconBtn label={theme === 'dark' ? 'Modo claro' : 'Modo escuro'} onClick={toggleTheme} icon={theme === 'dark' ? 'sun' : 'moon'} />
             <IconBtn label="Histórico" onClick={() => setOpenHistory(true)} icon="history" />
             <UserMenu
+              theme={theme}
+              onToggleTheme={toggleTheme}
               onSettings={() => setOpenSettings(true)}
               onProfile={() => setOpenProfile(true)}
             />
@@ -395,7 +396,7 @@ function Calculator({ userId, theme, toggleTheme }) {
   )
 }
 
-function UserMenu({ onSettings, onProfile }) {
+function UserMenu({ theme, onToggleTheme, onSettings, onProfile }) {
   const [open, setOpen] = useState(false)
   const ref = useRef(null)
 
@@ -428,8 +429,14 @@ function UserMenu({ onSettings, onProfile }) {
       {open && (
         <div
           role="menu"
-          className="absolute right-0 mt-2 w-48 rounded-xl border border-line bg-bg shadow-soft overflow-hidden z-40"
+          className="absolute right-0 mt-2 w-52 rounded-xl border border-line shadow-soft overflow-hidden z-40"
+          style={{ background: 'rgb(var(--surface))' }}
         >
+          <MenuItem
+            icon={theme === 'dark' ? 'sun' : 'moon'}
+            label={theme === 'dark' ? 'Modo claro' : 'Modo escuro'}
+            onClick={() => pick(onToggleTheme)}
+          />
           <MenuItem icon="settings" label="Configurações" onClick={() => pick(onSettings)} />
           <MenuItem icon="user" label="Perfil" onClick={() => pick(onProfile)} />
         </div>
