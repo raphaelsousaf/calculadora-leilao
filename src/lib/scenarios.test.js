@@ -22,8 +22,10 @@ describe('scenarios', () => {
     expect(row.entry).toBe(10675)
     expect(row.remaining).toBe(32025)
     expect(row.commission).toBe(2135)
-    expect(row.surety).toBe(427)
-    expect(row.upfront).toBe(13237)
+    // fiança = 1% sobre saldo (32025) = 320.25
+    expect(row.surety).toBe(320.25)
+    // upfront = 10675 + 2135 + 320.25 = 13130.25
+    expect(row.upfront).toBe(13130.25)
     expect(row.installment).toBe(1067.5)
     expect(row.isIdeal).toBe(true)
   })

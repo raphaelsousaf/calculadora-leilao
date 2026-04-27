@@ -366,7 +366,7 @@ function Calculator({ userId, theme, toggleTheme }) {
                 />
                 <span className="absolute right-4 top-1/2 -translate-y-1/2 text-fg-subtle">%</span>
               </div>
-              <p className="text-[11px] text-fg-muted mt-1.5">Use 0 se o edital não exigir</p>
+              <p className="text-[11px] text-fg-muted mt-1.5">% sobre o saldo a parcelar</p>
             </div>
 
             <div className="flex flex-col">

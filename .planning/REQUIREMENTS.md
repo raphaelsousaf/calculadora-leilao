@@ -25,6 +25,6 @@
 - **Avaliação:** valor de mercado declarado no edital.
 - **Entrada:** percentual pago no dia do leilão (default 25% do arremate).
 - **Comissão do leiloeiro:** percentual do arremate pago ao leiloeiro (default 5%).
-- **Carta de fiança:** garantia bancária exigida em alguns editais (default 1% do arremate, configurável; usar 0 se edital não exigir).
+- **Carta de fiança:** garantia bancária do **saldo a parcelar** (75% do arremate). Default 1%, configurável; usar 0 se edital não exigir. Fórmula: `surety = saldo × suretyPct/100`.
 - **Custo inicial:** entrada + comissão + carta de fiança — total desembolsado no dia.
 - **Saldo a parcelar:** arremate − entrada (geralmente 75% do arremate).
