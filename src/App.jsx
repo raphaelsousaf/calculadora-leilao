@@ -789,7 +789,6 @@ function ScenariosMatrix({ scenarios, selected, onSelect, hasInput, revenda = 0,
               <th className="text-right px-3 py-2.5">Comissão</th>
               <th className="text-right px-3 py-2.5">Carta fiança</th>
               <th className="text-right px-3 py-2.5">Custo inicial</th>
-              <th className="text-right px-3 py-2.5">% Arremate</th>
               <th className="text-right px-3 py-2.5">Parcela</th>
               {showMargin && <th className="text-right px-3 py-2.5">Margem %</th>}
             </tr>
@@ -831,7 +830,6 @@ function ScenariosMatrix({ scenarios, selected, onSelect, hasInput, revenda = 0,
                   <td className="px-3 py-2 text-right">{brl(row.commission)}</td>
                   <td className="px-3 py-2 text-right">{brl(row.surety)}</td>
                   <td className="px-3 py-2 text-right font-semibold">{brl(row.upfront)}</td>
-                  <td className="px-3 py-2 text-right opacity-80">{row.bid > 0 ? (row.upfront / row.bid * 100).toFixed(1) + '%' : '—'}</td>
                   <td className="px-3 py-2 text-right">{brl(row.installment)}</td>
                   {showMargin && (() => {
                     const m = marginFor(row)
@@ -884,7 +882,6 @@ function ScenariosMatrix({ scenarios, selected, onSelect, hasInput, revenda = 0,
                 <span className="opacity-70">Comissão</span><span className="text-right tabular-nums">{brl(row.commission)}</span>
                 <span className="opacity-70">Carta fiança</span><span className="text-right tabular-nums">{brl(row.surety)}</span>
                 <span className="opacity-70 font-semibold">Custo inicial</span><span className="text-right tabular-nums font-semibold">{brl(row.upfront)}</span>
-                <span className="opacity-70">% do arremate</span><span className="text-right tabular-nums">{row.bid > 0 ? (row.upfront / row.bid * 100).toFixed(1) + '%' : '—'}</span>
                 <span className="opacity-70">Parcela</span><span className="text-right tabular-nums">{brl(row.installment)}</span>
                 {showMargin && (() => {
                   const m = marginFor(row)
@@ -1059,7 +1056,6 @@ function ScenarioComparator({ scenarios, pinnedPcts, revenda, onClear, onUnpin }
   const items = [
     { key: 'bid', label: 'Arremate', fmt: (r) => brl(r.bid) },
     { key: 'upfront', label: 'Custo inicial', fmt: (r) => brl(r.upfront), strong: true },
-    { key: 'pctArr', label: '% do arremate', fmt: (r) => r.bid > 0 ? (r.upfront / r.bid * 100).toFixed(1) + '%' : '—' },
     { key: 'installment', label: 'Parcela', fmt: (r) => brl(r.installment) },
   ]
 
