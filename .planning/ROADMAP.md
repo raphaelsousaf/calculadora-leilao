@@ -44,3 +44,10 @@ Plans:
 **Requirements:** R8
 **Status:** specced
 **Depends on:** Phase 1, Phase 2
+**Plans:** 4 plans
+
+Plans:
+- [ ] 03-01-PLAN.md — Tooltip primitives: tooltips.js (6 textos canônicos) + Tooltip.jsx acessível + Icon.jsx (info, pin)
+- [ ] 03-02-PLAN.md — App.jsx hero-stat: CompositionBar inline + sublabel "% do arremate sai no dia" + coluna "% Arremate" na matriz + 6 ⓘ tooltips wired
+- [ ] 03-03-PLAN.md — App.jsx comparador: pinned state (sessão) + fixar buttons + ScenarioComparator card responsivo + toast 3-limit + Limpar
+- [ ] 03-04-PLAN.md — Checkpoint humano: visual + a11y + contraste WCAG AA + bundle ≤30KB + verificação de não-persistência
