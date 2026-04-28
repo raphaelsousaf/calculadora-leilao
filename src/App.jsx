@@ -268,6 +268,11 @@ function Calculator({ userId, theme, toggleTheme }) {
     try {
       await upsertSettings(userId, s)
       setSettings(s)
+      // Re-sincroniza o campo de fiança com o novo default de Settings
+      // (a menos que o usuário tenha um override ativo divergente do default antigo)
+      const newDefault = s.defaultSuretyPct ?? SURETY_FALLBACK
+      setSuretyPctStr(String(newDefault))
+      setSuretyTouched(false)
       showToast('Configurações salvas')
     } catch (err) {
       showToast(err?.message || 'Erro ao salvar configurações')
