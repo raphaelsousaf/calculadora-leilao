@@ -410,11 +410,6 @@ function Calculator({ userId, theme, toggleTheme }) {
             <div className="flex flex-col">
               <div className="flex justify-between items-baseline gap-2 min-h-[20px]">
                 <label className="label">Carta fiança</label>
-                <button
-                  className="text-[11px] text-accent hover:text-accent-hover whitespace-nowrap"
-                  onClick={() => { setSuretyPctStr(suretyPlaceholder); setSuretyTouched(true) }}
-                  type="button"
-                >Padrão {suretyPlaceholder}%</button>
               </div>
               <div className="mt-2 relative">
                 <input
@@ -426,7 +421,7 @@ function Calculator({ userId, theme, toggleTheme }) {
                 />
                 <span className="absolute right-4 top-1/2 -translate-y-1/2 text-fg-subtle">%</span>
               </div>
-              <p className="text-[11px] text-fg-muted mt-1.5">% sobre o saldo</p>
+              <p className="text-[11px] text-fg-muted mt-1.5">% do saldo · Padrão {suretyPlaceholder}%</p>
             </div>
 
             <div className="flex flex-col">
