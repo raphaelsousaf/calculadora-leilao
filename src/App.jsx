@@ -7,7 +7,9 @@ import { HistoryModal } from './components/HistoryModal'
 import { ProfileModal } from './components/ProfileModal'
 import { AuthScreen } from './components/AuthScreen'
 import { calculate } from './lib/calc'
-import { brl, formatBRLInput, parseBRL, pct } from './lib/format'
+import { buildScenarioMatrix, DEFAULT_THRESHOLDS, TIER_LABELS } from './lib/scenarios'
+import { buildSchedule } from './lib/schedule'
+import { brl, formatBRLInput, parseBRL, pct, formatDateBR } from './lib/format'
 import { openPDF } from './lib/pdf'
 import { useTheme } from './lib/theme'
 import { useAuth } from './lib/auth'
@@ -24,6 +26,8 @@ const EMPTY_META = {
   comprador: '', lote: '', processo: '',
   categoria: '', subcategoria: '', descricao: '', dataLeilao: '',
 }
+
+const SURETY_FALLBACK = 1
 
 export default function App() {
   const { user, loading: authLoading } = useAuth()
@@ -43,9 +47,18 @@ export default function App() {
 }
 
 function Calculator({ userId, theme, toggleTheme }) {
+  const [mode, setMode] = useState(() => {
+    try { return localStorage.getItem('calc.lastMode') || 'fixed' } catch { return 'fixed' }
+  })
   const [arremateStr, setArremateStr] = useState('')
+  const [appraisalStr, setAppraisalStr] = useState('')
+  const [selectedDiscountPct, setSelectedDiscountPct] = useState(null)
   const [commissionPct, setCommissionPct] = useState(DEFAULT_COMMISSION)
   const [installments, setInstallments] = useState(DEFAULT_INSTALLMENTS)
+  const [suretyPctStr, setSuretyPctStr] = useState('')
+  const [suretyTouched, setSuretyTouched] = useState(false)
+  const [revendaStr, setRevendaStr] = useState('')
+  const [intervaloDiasStr, setIntervaloDiasStr] = useState('30')
   const [meta, setMeta] = useState(EMPTY_META)
 
   const [history, setHistory] = useState([])
@@ -61,6 +74,10 @@ function Calculator({ userId, theme, toggleTheme }) {
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(''), 2200) }
 
   useEffect(() => {
+    try { localStorage.setItem('calc.lastMode', mode) } catch {}
+  }, [mode])
+
+  useEffect(() => {
     let cancelled = false
     Promise.all([fetchCalculations(userId), fetchSettings(userId)])
       .then(([h, s]) => {
@@ -72,6 +89,17 @@ function Calculator({ userId, theme, toggleTheme }) {
     return () => { cancelled = true }
   }, [userId])
 
+  // Sync surety default from Settings (only once, while user hasn't touched the field)
+  useEffect(() => {
+    if (suretyTouched) return
+    if (suretyPctStr !== '') return
+    if (settings && settings.defaultSuretyPct != null) {
+      setSuretyPctStr(String(settings.defaultSuretyPct))
+    } else if (settings) {
+      setSuretyPctStr(String(SURETY_FALLBACK))
+    }
+  }, [settings, suretyTouched, suretyPctStr])
+
   useEffect(() => {
     const url = new URL(window.location.href)
     if (url.searchParams.get('recover') === '1') {
@@ -81,12 +109,86 @@ function Calculator({ userId, theme, toggleTheme }) {
     }
   }, [])
 
-  const arremate = useMemo(() => parseBRL(arremateStr), [arremateStr])
+  const suretyPct = useMemo(() => {
+    if (suretyPctStr.trim() === '') return settings?.defaultSuretyPct ?? SURETY_FALLBACK
+    const n = Number(suretyPctStr)
+    return Number.isFinite(n) ? n : 0
+  }, [suretyPctStr, settings])
+
+  const appraisal = useMemo(() => parseBRL(appraisalStr), [appraisalStr])
+
+  const effectiveArremate = useMemo(() => {
+    if (mode === 'scenarios') {
+      if (selectedDiscountPct == null) return 0
+      return appraisal * (selectedDiscountPct / 100)
+    }
+    return parseBRL(arremateStr)
+  }, [mode, arremateStr, appraisal, selectedDiscountPct])
+
   const calc = useMemo(
-    () => calculate({ arremate, commissionPct, installments }),
-    [arremate, commissionPct, installments],
+    () => calculate({ arremate: effectiveArremate, commissionPct, suretyPct, installments }),
+    [effectiveArremate, commissionPct, suretyPct, installments],
   )
-  const hasValue = arremate > 0
+
+  // Thresholds vindos de Settings (com fallback aos defaults)
+  const thresholds = useMemo(() => ({
+    t1: settings?.viabilityT1 ?? DEFAULT_THRESHOLDS.t1,
+    t2: settings?.viabilityT2 ?? DEFAULT_THRESHOLDS.t2,
+    t3: settings?.viabilityT3 ?? DEFAULT_THRESHOLDS.t3,
+  }), [settings])
+
+  const scenarios = useMemo(() => buildScenarioMatrix({
+    appraisal,
+    commissionPct,
+    suretyPct,
+    installments,
+    thresholds,
+  }), [appraisal, commissionPct, suretyPct, installments, thresholds])
+
+  const revenda = useMemo(() => parseBRL(revendaStr), [revendaStr])
+  const intervaloDias = useMemo(() => {
+    const n = parseInt(intervaloDiasStr, 10)
+    return Number.isFinite(n) && n > 0 ? n : 30
+  }, [intervaloDiasStr])
+
+  // Margem bruta — só quando revenda > 0 e há um arremate efetivo
+  const margin = useMemo(() => {
+    if (!(revenda > 0) || calc.bid <= 0) return null
+    const totalEfetivo = calc.bid + calc.commission + calc.surety
+    const value = revenda - totalEfetivo
+    const pctVal = (value / revenda) * 100
+    return { value, pct: pctVal }
+  }, [revenda, calc])
+
+  // Cronograma — derivado, só com data leilão preenchida
+  const schedule = useMemo(() => {
+    if (!meta.dataLeilao || calc.installments <= 0) return []
+    return buildSchedule(calc.installments, meta.dataLeilao, intervaloDias, calc.installment)
+  }, [meta.dataLeilao, calc.installments, calc.installment, intervaloDias])
+
+  // Tier do cenário ativo (Resumo badge)
+  const activeTier = useMemo(() => {
+    if (mode === 'scenarios' && selectedDiscountPct != null) {
+      const row = scenarios.find(r => r.pct === selectedDiscountPct)
+      return row?.tier ?? null
+    }
+    return null
+  }, [mode, selectedDiscountPct, scenarios])
+
+  const hasValue = effectiveArremate > 0
+  const canAct = mode === 'fixed' ? hasValue : (selectedDiscountPct != null && appraisal > 0)
+
+  const switchMode = (next) => {
+    if (next === mode) return
+    if (next === 'scenarios') {
+      setArremateStr('')
+      setSelectedDiscountPct(null)
+    } else {
+      setAppraisalStr('')
+      setSelectedDiscountPct(null)
+    }
+    setMode(next)
+  }
 
   const updateMeta = (k, v) => setMeta(m => {
     const next = { ...m, [k]: v }
@@ -94,9 +196,26 @@ function Calculator({ userId, theme, toggleTheme }) {
     return next
   })
 
+  const buildSavePayload = () => {
+    const base = {
+      ...calc,
+      mode,
+      suretyPct,
+      surety: calc.surety,
+    }
+    if (mode === 'scenarios') {
+      base.appraisal = appraisal
+      base.discountPct = selectedDiscountPct
+    }
+    if (revenda > 0) base.revendaEsperada = revenda
+    if (intervaloDias !== 30) base.intervaloDias = intervaloDias
+    return base
+  }
+
   const handleSave = async () => {
     try {
-      const item = await insertCalculation(userId, { calc, meta })
+      const payload = buildSavePayload()
+      const item = await insertCalculation(userId, { calc: payload, meta })
       setHistory(h => [item, ...h])
       setOpenSave(false)
       showToast('Cálculo salvo')
@@ -106,10 +225,33 @@ function Calculator({ userId, theme, toggleTheme }) {
   }
 
   const handleLoad = (item) => {
-    setArremateStr(formatBRLInput(String(Math.round((item.calc.bid || 0) * 100))))
-    setCommissionPct(item.calc.commissionPct ?? DEFAULT_COMMISSION)
-    setInstallments(item.calc.installments ?? DEFAULT_INSTALLMENTS)
+    const c = item.calc || {}
+
+    // Legados
+    setCommissionPct(c.commissionPct ?? DEFAULT_COMMISSION)
+    setInstallments(c.installments ?? DEFAULT_INSTALLMENTS)
     setMeta({ ...EMPTY_META, ...item.meta })
+
+    // Novos campos (D-06) — backwards-compat
+    const loadedMode = c.mode ?? 'fixed'
+    setMode(loadedMode)
+    setSuretyPctStr(c.suretyPct != null ? String(c.suretyPct) : '0')
+    setSuretyTouched(true)
+
+    if (loadedMode === 'scenarios') {
+      setAppraisalStr(formatBRLInput(String(Math.round((c.appraisal || 0) * 100))))
+      setSelectedDiscountPct(c.discountPct ?? null)
+      setArremateStr('')
+    } else {
+      setArremateStr(formatBRLInput(String(Math.round((c.bid || 0) * 100))))
+      setAppraisalStr('')
+      setSelectedDiscountPct(null)
+    }
+
+    // Fase 2 — restaura revenda e intervalo (D-26)
+    setRevendaStr(c.revendaEsperada > 0 ? formatBRLInput(String(Math.round(c.revendaEsperada * 100))) : '')
+    setIntervaloDiasStr(String(c.intervaloDias ?? 30))
+
     showToast('Cálculo carregado')
   }
 
@@ -126,31 +268,50 @@ function Calculator({ userId, theme, toggleTheme }) {
     try {
       await upsertSettings(userId, s)
       setSettings(s)
+      // Re-sincroniza o campo de fiança com o novo default de Settings
+      // (a menos que o usuário tenha um override ativo divergente do default antigo)
+      const newDefault = s.defaultSuretyPct ?? SURETY_FALLBACK
+      setSuretyPctStr(String(newDefault))
+      setSuretyTouched(false)
       showToast('Configurações salvas')
     } catch (err) {
       showToast(err?.message || 'Erro ao salvar configurações')
     }
   }
 
+  const calcForExport = useMemo(() => ({
+    ...calc,
+    revendaEsperada: revenda > 0 ? revenda : undefined,
+    intervaloDias,
+  }), [calc, revenda, intervaloDias])
+
   const handlePDF = () => {
-    if (!hasValue) return showToast('Informe o valor de arremate')
-    openPDF({ calc, meta, settings })
+    if (!canAct) return showToast(mode === 'scenarios' ? 'Selecione um cenário' : 'Informe o valor de arremate')
+    openPDF({ calc: calcForExport, meta, settings })
   }
   const handleWA = () => {
-    if (!hasValue) return showToast('Informe o valor de arremate')
+    if (!canAct) return showToast(mode === 'scenarios' ? 'Selecione um cenário' : 'Informe o valor de arremate')
     setOpenWA(true)
   }
 
   const handleReset = () => {
-    setArremateStr(''); setCommissionPct(DEFAULT_COMMISSION); setInstallments(DEFAULT_INSTALLMENTS); setMeta(EMPTY_META)
+    setArremateStr('')
+    setAppraisalStr('')
+    setSelectedDiscountPct(null)
+    setCommissionPct(DEFAULT_COMMISSION)
+    setInstallments(DEFAULT_INSTALLMENTS)
+    setRevendaStr('')
+    setIntervaloDiasStr('30')
+    setMeta(EMPTY_META)
   }
 
   const subcats = CATEGORIES[meta.categoria] || []
+  const suretyPlaceholder = String(settings?.defaultSuretyPct ?? SURETY_FALLBACK)
 
   return (
     <div className="min-h-screen pb-20">
       <header className="sticky top-0 z-30 glass">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-3.5 flex items-center justify-between gap-3">
+        <div className="w-full px-4 sm:px-6 lg:px-8 py-3.5 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2.5 min-w-0">
             <div className="w-8 h-8 rounded-lg flex items-center justify-center shadow-soft"
                  style={{ background: 'rgb(var(--elevated))', color: 'rgb(var(--on-elevated))' }}>
@@ -173,30 +334,68 @@ function Calculator({ userId, theme, toggleTheme }) {
         </div>
       </header>
 
-      <main className="max-w-5xl mx-auto px-4 sm:px-6 pt-6 sm:pt-10 grid lg:grid-cols-[1.05fr_1fr] gap-5 sm:gap-7">
+      <main className={`mx-auto px-4 sm:px-6 pt-6 sm:pt-10 grid lg:grid-cols-[minmax(0,1.4fr)_minmax(280px,1fr)] gap-5 sm:gap-7 ${mode === 'scenarios' ? 'max-w-7xl' : 'max-w-6xl'}`}>
         {/* Inputs */}
-        <section className="card p-5 sm:p-7 space-y-6">
-          <div>
-            <label className="label">Valor de arremate</label>
-            <div className="mt-2 relative">
-              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-fg-subtle text-lg">R$</span>
-              <input
-                inputMode="decimal"
-                className="input !pl-12 !py-4 text-3xl sm:text-4xl font-semibold tabular-nums"
-                value={arremateStr}
-                onChange={e => setArremateStr(formatBRLInput(e.target.value))}
-                placeholder="0,00"
-                autoFocus
-              />
-            </div>
+        <section className="card p-5 sm:p-7 space-y-6 min-w-0">
+          {/* Mode toggle */}
+          <div role="tablist" aria-label="Modo de cálculo" className="inline-flex rounded-lg border border-line bg-soft p-1 gap-1">
+            <button
+              role="tab"
+              type="button"
+              aria-selected={mode === 'fixed'}
+              onClick={() => switchMode('fixed')}
+              className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${mode === 'fixed' ? 'bg-accent text-white shadow-soft' : 'text-fg-muted hover:text-fg'}`}
+            >Arremate fixo</button>
+            <button
+              role="tab"
+              type="button"
+              aria-selected={mode === 'scenarios'}
+              onClick={() => switchMode('scenarios')}
+              className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${mode === 'scenarios' ? 'bg-accent text-white shadow-soft' : 'text-fg-muted hover:text-fg'}`}
+            >Simular por avaliação</button>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+          {mode === 'fixed' ? (
             <div>
-              <div className="flex justify-between items-baseline">
-                <label className="label">Comissão do leiloeiro</label>
+              <label className="label">Valor de arremate</label>
+              <div className="mt-2 relative">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-fg-subtle text-lg">R$</span>
+                <input
+                  inputMode="decimal"
+                  className="input !pl-12 !py-4 text-3xl sm:text-4xl font-semibold tabular-nums"
+                  value={arremateStr}
+                  onChange={e => setArremateStr(formatBRLInput(e.target.value))}
+                  placeholder="0,00"
+                  autoFocus
+                />
+              </div>
+            </div>
+          ) : (
+            <div>
+              <label className="label">Valor de avaliação</label>
+              <div className="mt-2 relative">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-fg-subtle text-lg">R$</span>
+                <input
+                  inputMode="decimal"
+                  className="input !pl-12 !py-4 text-3xl sm:text-4xl font-semibold tabular-nums"
+                  value={appraisalStr}
+                  onChange={e => {
+                    setAppraisalStr(formatBRLInput(e.target.value))
+                    setSelectedDiscountPct(null)
+                  }}
+                  placeholder="0,00"
+                  autoFocus
+                />
+              </div>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
+            <div className="flex flex-col">
+              <div className="flex justify-between items-baseline gap-2 min-h-[20px]">
+                <label className="label">Comissão</label>
                 <button
-                  className="text-[11px] text-accent hover:text-accent-hover"
+                  className="text-[11px] text-accent hover:text-accent-hover whitespace-nowrap"
                   onClick={() => setCommissionPct(DEFAULT_COMMISSION)}
                   type="button"
                 >Padrão 5%</button>
@@ -204,26 +403,44 @@ function Calculator({ userId, theme, toggleTheme }) {
               <div className="mt-2 relative">
                 <input
                   type="number" min="0" max="100" step="0.01"
-                  className="input !pr-10 tabular-nums"
+                  className="input !pr-10 tabular-nums h-11"
                   value={commissionPct}
                   onChange={e => setCommissionPct(Math.max(0, Math.min(100, Number(e.target.value) || 0)))}
                 />
                 <span className="absolute right-4 top-1/2 -translate-y-1/2 text-fg-subtle">%</span>
               </div>
+              <p className="text-[11px] text-fg-muted mt-1.5">Do leiloeiro</p>
             </div>
 
-            <div>
-              <div className="flex justify-between items-baseline">
-                <label className="label">Parcelas (sem juros)</label>
-                <span className="text-[11px] text-fg-muted">até {MAX_INSTALLMENTS}x</span>
+            <div className="flex flex-col">
+              <div className="flex justify-between items-baseline gap-2 min-h-[20px]">
+                <label className="label">Carta fiança</label>
               </div>
-              <div className="mt-2 flex items-center gap-2">
+              <div className="mt-2 relative">
+                <input
+                  type="number" min="0" max="100" step="0.1"
+                  className="input !pr-10 tabular-nums h-11"
+                  value={suretyPctStr}
+                  placeholder={suretyPlaceholder}
+                  onChange={e => { setSuretyPctStr(e.target.value); setSuretyTouched(true) }}
+                />
+                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-fg-subtle">%</span>
+              </div>
+              <p className="text-[11px] text-fg-muted mt-1.5">% do saldo · Padrão {suretyPlaceholder}%</p>
+            </div>
+
+            <div className="flex flex-col">
+              <div className="flex justify-between items-baseline gap-2 min-h-[20px]">
+                <label className="label">Parcelas</label>
+                <span className="text-[11px] text-fg-muted whitespace-nowrap">até {MAX_INSTALLMENTS}x</span>
+              </div>
+              <div className="mt-2 flex items-center gap-1.5">
                 <StepBtn onClick={() => setInstallments(v => Math.max(MIN_INSTALLMENTS, v - 1))} label="Diminuir">
                   <Icon name="minus" className="w-4 h-4" />
                 </StepBtn>
                 <input
                   type="number" min={MIN_INSTALLMENTS} max={MAX_INSTALLMENTS}
-                  className="input text-center tabular-nums"
+                  className="input text-center tabular-nums h-11 px-1"
                   value={installments}
                   onChange={e => setInstallments(Math.max(MIN_INSTALLMENTS, Math.min(MAX_INSTALLMENTS, parseInt(e.target.value) || 1)))}
                 />
@@ -231,8 +448,37 @@ function Calculator({ userId, theme, toggleTheme }) {
                   <Icon name="plus" className="w-4 h-4" />
                 </StepBtn>
               </div>
+              <p className="text-[11px] text-fg-muted mt-1.5">Sem juros</p>
+            </div>
+
+            <div className="flex flex-col">
+              <div className="flex justify-between items-baseline gap-2 min-h-[20px]">
+                <label className="label">Revenda</label>
+                <span className="text-[11px] text-fg-muted whitespace-nowrap">Opcional</span>
+              </div>
+              <div className="mt-2 relative">
+                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-fg-subtle text-sm">R$</span>
+                <input
+                  inputMode="decimal"
+                  className="input !pl-10 tabular-nums h-11"
+                  value={revendaStr}
+                  onChange={e => setRevendaStr(formatBRLInput(e.target.value))}
+                  placeholder="0,00"
+                />
+              </div>
+              <p className="text-[11px] text-fg-muted mt-1.5">Estimar margem</p>
             </div>
           </div>
+
+          {mode === 'scenarios' && (
+            <ScenariosMatrix
+              scenarios={scenarios}
+              selected={selectedDiscountPct}
+              onSelect={setSelectedDiscountPct}
+              hasInput={appraisal > 0}
+              revenda={revenda}
+            />
+          )}
 
           <div className="divider" />
 
@@ -289,67 +535,136 @@ function Calculator({ userId, theme, toggleTheme }) {
                   <input type="date" className="input" value={meta.dataLeilao} onChange={e => updateMeta('dataLeilao', e.target.value)} />
                 </Field>
               </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Field label="Intervalo entre parcelas (dias)">
+                  <input
+                    type="number" min="1" max="365" step="1"
+                    className="input tabular-nums"
+                    value={intervaloDiasStr}
+                    onChange={e => setIntervaloDiasStr(e.target.value)}
+                    placeholder="30"
+                  />
+                  <span className="text-[11px] text-fg-muted block mt-1">Estimado — confirme com o edital</span>
+                </Field>
+              </div>
             </div>
           </details>
 
           <div className="flex flex-wrap gap-2 pt-1">
             <button className="btn-ghost" onClick={handleReset}>Limpar</button>
             <div className="flex-1" />
-            <button className="btn-ghost" onClick={() => setOpenSave(true)} disabled={!hasValue}>
+            <button className="btn-ghost" onClick={() => setOpenSave(true)} disabled={!canAct}>
               <Icon name="save" className="w-4 h-4" /> Salvar
             </button>
           </div>
         </section>
 
         {/* Results */}
-        <section className="lg:sticky lg:top-24 self-start">
+        <section className="lg:sticky lg:top-24 self-start min-w-0">
           <div className="card p-5 sm:p-7">
-            <div className="flex items-baseline justify-between">
+            <div className="flex items-baseline justify-between gap-2 flex-wrap">
               <h2 className="text-lg font-semibold text-fg">Resumo</h2>
-              {hasValue && <span className="text-xs text-fg-muted">{pct(commissionPct)} comissão · {calc.installments}x</span>}
-            </div>
-
-            <div className="mt-5 space-y-5">
-              <div className="hero-stat">
-                <div className="text-[11px] uppercase tracking-[0.08em] font-medium opacity-60">Total à vista (no dia)</div>
-                <div className="text-3xl sm:text-[34px] font-semibold tabular-nums mt-1 leading-tight">{brl(calc.upfront)}</div>
-                <div className="text-xs mt-1.5 opacity-60">Entrada 25% + comissão {pct(commissionPct)}</div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <MiniStat label="Entrada (25%)" value={brl(calc.entry)} />
-                <MiniStat label={`Comissão (${pct(commissionPct)})`} value={brl(calc.commission)} />
-              </div>
-
-              <div className="divider" />
-
-              <div className="hero-stat-light">
-                <div className="text-[11px] uppercase tracking-[0.08em] font-medium text-fg-muted">Parcela ({calc.installments}x sem juros)</div>
-                <div className="text-3xl sm:text-[34px] font-semibold tabular-nums mt-1 leading-tight text-fg">{brl(calc.installment)}</div>
-                <div className="text-xs mt-1.5 text-fg-muted">Saldo de {brl(calc.remaining)} parcelado</div>
-              </div>
-
-              <div className="divider" />
-
-              <div className="stat">
-                <span className="stat-label">Valor de arremate</span>
-                <span className="stat-value">{brl(calc.bid)}</span>
-              </div>
-              <div className="stat">
-                <span className="stat-label">Total geral</span>
-                <span className="stat-strong">{brl(calc.total)}</span>
+              <div className="flex items-center gap-2 flex-wrap">
+                {canAct && activeTier && <ViabilityBadge tier={activeTier} />}
+                {canAct && <span className="text-xs text-fg-muted whitespace-nowrap">{pct(commissionPct)} · {calc.installments}x</span>}
               </div>
             </div>
+
+            {!canAct && mode === 'scenarios' ? (
+              <div className="mt-5 rounded-xl bg-soft border border-line p-6 flex flex-col items-center text-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-surface border border-line flex items-center justify-center text-fg-muted">
+                  <Icon name="calculator" className="w-5 h-5" />
+                </div>
+                <p className="text-sm text-fg-muted leading-relaxed">
+                  Selecione um cenário na matriz<br />para ver o resumo.
+                </p>
+              </div>
+            ) : (
+              <div className="mt-5 space-y-5">
+                <div className="hero-stat">
+                  <div className="text-[11px] uppercase tracking-[0.08em] font-medium opacity-60">Custo inicial</div>
+                  <div className="text-3xl sm:text-[34px] font-semibold tabular-nums mt-1 leading-tight">{brl(calc.upfront)}</div>
+                  <div className="text-xs mt-1.5 opacity-60">Entrada + comissão + carta de fiança</div>
+                  {margin && (
+                    <div className="text-xs mt-2 pt-2 border-t" style={{ borderColor: 'rgba(255,255,255,0.15)' }}>
+                      <span className="opacity-60">Margem estimada: </span>
+                      <span className="font-semibold tabular-nums" style={{
+                        color: margin.value >= 0 ? 'rgb(var(--tier-excellent-fg))' : 'rgb(var(--tier-over-market-fg))',
+                      }}>
+                        {brl(margin.value)} ({margin.pct.toFixed(1)}%)
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <MiniStat label="Entrada (25%)" value={brl(calc.entry)} />
+                  <MiniStat label={`Comissão (${pct(commissionPct)})`} value={brl(calc.commission)} />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <MiniStat label={`Carta de fiança (${pct(suretyPct)})`} value={brl(calc.surety)} />
+                  <MiniStat label="Saldo a parcelar" value={brl(calc.remaining)} />
+                </div>
+
+                <div className="divider" />
+
+                <div className="hero-stat-light">
+                  <div className="text-[11px] uppercase tracking-[0.08em] font-medium text-fg-muted">Parcela ({calc.installments}x sem juros)</div>
+                  <div className="text-3xl sm:text-[34px] font-semibold tabular-nums mt-1 leading-tight text-fg">{brl(calc.installment)}</div>
+                  <div className="text-xs mt-1.5 text-fg-muted">Saldo de {brl(calc.remaining)} parcelado</div>
+                </div>
+
+                <div className="divider" />
+
+                <div className="stat">
+                  <span className="stat-label">Valor de arremate</span>
+                  <span className="stat-value">{brl(calc.bid)}</span>
+                </div>
+                <div className="stat">
+                  <span className="stat-label">Total geral</span>
+                  <span className="stat-strong">{brl(calc.total)}</span>
+                </div>
+
+                {/* Cronograma — mobile (details dentro do Resumo) */}
+                {canAct && (
+                  <details className="md:hidden mt-2 group rounded-xl border border-line bg-soft/40 hover:bg-soft transition-colors open:bg-surface">
+                    <summary className="flex items-center justify-between cursor-pointer select-none px-4 py-3 list-none">
+                      <span className="flex items-center gap-2 text-sm font-medium text-fg">
+                        <Icon name="calendar" className="w-4 h-4 text-fg-muted" />
+                        {schedule.length > 0
+                          ? `Ver cronograma (${schedule.length} parcelas)`
+                          : 'Cronograma de pagamento'}
+                      </span>
+                      <Icon name="chevron-down" className="w-4 h-4 text-fg-subtle group-open:rotate-180 transition-transform" />
+                    </summary>
+                    <div className="px-4 pb-4 pt-1 border-t border-line">
+                      <ScheduleContent schedule={schedule} hasDate={!!meta.dataLeilao} />
+                    </div>
+                  </details>
+                )}
+              </div>
+            )}
 
             <div className="mt-7 grid grid-cols-2 gap-2">
-              <button className="btn-primary" onClick={handlePDF} disabled={!hasValue}>
+              <button className="btn-primary" onClick={handlePDF} disabled={!canAct}>
                 <Icon name="pdf" className="w-4 h-4" /> PDF
               </button>
-              <button className="btn-accent" onClick={handleWA} disabled={!hasValue}>
+              <button className="btn-accent" onClick={handleWA} disabled={!canAct}>
                 <Icon name="whatsapp" className="w-4 h-4" /> WhatsApp
               </button>
             </div>
           </div>
+
+          {/* Cronograma — desktop (card separado abaixo do Resumo) */}
+          {canAct && (
+            <div className="hidden md:block card p-5 sm:p-7 mt-4">
+              <div className="flex items-center gap-2 mb-4">
+                <Icon name="calendar" className="w-4 h-4 text-fg-muted" />
+                <h3 className="text-sm font-semibold text-fg">Cronograma de pagamento</h3>
+              </div>
+              <ScheduleContent schedule={schedule} hasDate={!!meta.dataLeilao} />
+            </div>
+          )}
 
           <p className="text-[11px] text-fg-muted text-center mt-4 px-4">
             Os valores são referenciais. Confira com o edital do leilão antes de informar o comprador.
@@ -359,7 +674,7 @@ function Calculator({ userId, theme, toggleTheme }) {
 
       {/* Modals */}
       <SettingsModal open={openSettings} onClose={() => setOpenSettings(false)} settings={settings} onSave={handleSaveSettings} />
-      <WhatsAppModal open={openWA} onClose={() => setOpenWA(false)} calc={calc} meta={meta} settings={settings} />
+      <WhatsAppModal open={openWA} onClose={() => setOpenWA(false)} calc={calcForExport} meta={meta} settings={settings} />
       <HistoryModal open={openHistory} onClose={() => setOpenHistory(false)} items={history} onLoad={handleLoad} onDelete={handleDelete} />
       <ProfileModal open={openProfile} onClose={() => setOpenProfile(false)} onToast={showToast} />
 
@@ -374,8 +689,9 @@ function Calculator({ userId, theme, toggleTheme }) {
       >
         <p className="text-sm text-fg-muted mb-4">Revise as informações antes de salvar no histórico.</p>
         <div className="rounded-xl bg-soft p-4 space-y-1.5 text-sm border border-line">
+          <Row k="Modo" v={mode === 'scenarios' ? `Cenários (${selectedDiscountPct ?? '—'}%)` : 'Arremate fixo'} />
           <Row k="Arremate" v={brl(calc.bid)} />
-          <Row k="Total à vista" v={brl(calc.upfront)} strong />
+          <Row k="Custo inicial" v={brl(calc.upfront)} strong />
           <Row k={`Parcela (${calc.installments}x)`} v={brl(calc.installment)} />
           {meta.comprador && <Row k="Comprador" v={meta.comprador} />}
           {meta.lote && <Row k="Lote" v={meta.lote} />}
@@ -392,6 +708,132 @@ function Calculator({ userId, theme, toggleTheme }) {
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+function ScenariosMatrix({ scenarios, selected, onSelect, hasInput, revenda = 0 }) {
+  if (!hasInput) {
+    return (
+      <div className="rounded-xl bg-soft border border-line p-6 text-center text-sm text-fg-muted">
+        Informe o valor de avaliação para ver os 13 cenários.
+      </div>
+    )
+  }
+
+  const showMargin = revenda > 0
+
+  const tierStyle = (row) => ({
+    background: `rgb(var(--tier-${row.tier}-bg))`,
+    color: `rgb(var(--tier-${row.tier}-fg))`,
+  })
+
+  const marginFor = (row) => {
+    const totalEfetivo = row.bid + row.commission + row.surety
+    const value = revenda - totalEfetivo
+    const pctVal = revenda > 0 ? (value / revenda) * 100 : 0
+    return { value, pct: pctVal }
+  }
+
+  return (
+    <div className="min-w-0">
+      {/* Desktop / tablet table */}
+      <div className="hidden md:block overflow-x-auto rounded-xl border border-line">
+        <table className="w-full text-sm tabular-nums">
+          <caption className="sr-only">Cenários de desconto</caption>
+          <thead className="bg-soft text-fg-muted text-[11px] uppercase tracking-[0.06em]">
+            <tr>
+              <th className="text-left px-3 py-2.5">%</th>
+              <th className="text-right px-3 py-2.5">Arrematação</th>
+              <th className="text-right px-3 py-2.5">Entrada</th>
+              <th className="text-right px-3 py-2.5">Saldo</th>
+              <th className="text-right px-3 py-2.5">Comissão</th>
+              <th className="text-right px-3 py-2.5">Carta fiança</th>
+              <th className="text-right px-3 py-2.5">Custo inicial</th>
+              <th className="text-right px-3 py-2.5">Parcela</th>
+              {showMargin && <th className="text-right px-3 py-2.5">Margem %</th>}
+            </tr>
+          </thead>
+          <tbody>
+            {scenarios.map((row) => {
+              const isSel = row.pct === selected
+              return (
+                <tr
+                  key={row.pct}
+                  role="button"
+                  tabIndex={0}
+                  aria-pressed={isSel}
+                  onClick={() => onSelect(row.pct)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      onSelect(row.pct)
+                    }
+                  }}
+                  style={tierStyle(row)}
+                  className={`border-t border-line cursor-pointer transition-colors hover:brightness-95 ${isSel ? 'ring-2 ring-accent ring-inset' : ''}`}
+                >
+                  <td className="px-3 py-2 font-medium">{row.pct}%</td>
+                  <td className="px-3 py-2 text-right">{brl(row.bid)}</td>
+                  <td className="px-3 py-2 text-right">{brl(row.entry)}</td>
+                  <td className="px-3 py-2 text-right">{brl(row.remaining)}</td>
+                  <td className="px-3 py-2 text-right">{brl(row.commission)}</td>
+                  <td className="px-3 py-2 text-right">{brl(row.surety)}</td>
+                  <td className="px-3 py-2 text-right font-semibold">{brl(row.upfront)}</td>
+                  <td className="px-3 py-2 text-right">{brl(row.installment)}</td>
+                  {showMargin && (() => {
+                    const m = marginFor(row)
+                    return (
+                      <td className="px-3 py-2 text-right font-medium">
+                        {m.pct.toFixed(1)}%
+                      </td>
+                    )
+                  })()}
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Mobile cards */}
+      <div className="md:hidden space-y-3">
+        {scenarios.map((row) => {
+          const isSel = row.pct === selected
+          return (
+            <button
+              key={row.pct}
+              type="button"
+              aria-pressed={isSel}
+              onClick={() => onSelect(row.pct)}
+              style={tierStyle(row)}
+              className={`w-full text-left rounded-xl border border-line p-4 transition-colors hover:brightness-95 ${isSel ? 'ring-2 ring-accent' : ''}`}
+            >
+              <div className="flex items-baseline justify-between mb-3">
+                <span className="text-2xl font-bold tabular-nums">{row.pct}%</span>
+                <span className="text-sm font-semibold tabular-nums">{brl(row.bid)}</span>
+              </div>
+              <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs">
+                <span className="opacity-70">Entrada</span><span className="text-right tabular-nums">{brl(row.entry)}</span>
+                <span className="opacity-70">Saldo</span><span className="text-right tabular-nums">{brl(row.remaining)}</span>
+                <span className="opacity-70">Comissão</span><span className="text-right tabular-nums">{brl(row.commission)}</span>
+                <span className="opacity-70">Carta fiança</span><span className="text-right tabular-nums">{brl(row.surety)}</span>
+                <span className="opacity-70 font-semibold">Custo inicial</span><span className="text-right tabular-nums font-semibold">{brl(row.upfront)}</span>
+                <span className="opacity-70">Parcela</span><span className="text-right tabular-nums">{brl(row.installment)}</span>
+                {showMargin && (() => {
+                  const m = marginFor(row)
+                  return (
+                    <>
+                      <span className="opacity-70">Margem</span>
+                      <span className="text-right tabular-nums font-medium">{m.pct.toFixed(1)}%</span>
+                    </>
+                  )
+                })()}
+              </div>
+            </button>
+          )
+        })}
+      </div>
     </div>
   )
 }
@@ -470,7 +912,7 @@ function StepBtn({ onClick, label, children }) {
   return (
     <button
       type="button" aria-label={label} onClick={onClick}
-      className="w-10 h-11 rounded-xl bg-soft border border-line text-fg-muted hover:text-fg active:scale-95 transition flex items-center justify-center"
+      className="shrink-0 w-9 h-11 rounded-xl bg-soft border border-line text-fg-muted hover:text-fg active:scale-95 transition flex items-center justify-center"
     >{children}</button>
   )
 }
@@ -498,6 +940,69 @@ function Row({ k, v, strong }) {
     <div className="flex justify-between items-baseline">
       <span className="text-fg-muted">{k}</span>
       <span className={strong ? 'font-semibold text-fg tabular-nums' : 'text-fg tabular-nums'}>{v}</span>
+    </div>
+  )
+}
+
+function ViabilityBadge({ tier }) {
+  const label = TIER_LABELS[tier] || tier
+  return (
+    <span
+      className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium whitespace-nowrap"
+      style={{
+        background: `rgb(var(--tier-${tier}-bg))`,
+        color: `rgb(var(--tier-${tier}-fg))`,
+      }}
+      title={`Faixa de viabilidade: ${label}`}
+    >
+      {label}
+    </span>
+  )
+}
+
+function ScheduleContent({ schedule, hasDate }) {
+  if (!hasDate) {
+    return (
+      <p className="text-sm text-fg-muted">
+        Informe a data do leilão em <span className="font-medium">"Adicionar detalhes do arremate"</span> para gerar o cronograma.
+      </p>
+    )
+  }
+  if (!schedule || schedule.length === 0) {
+    return <p className="text-sm text-fg-muted">Sem parcelas para exibir.</p>
+  }
+  const todayISO = new Date().toISOString().slice(0, 10)
+  const nextIdx = schedule.findIndex(p => p.dueDate >= todayISO)
+  return (
+    <div className="rounded-lg border border-line overflow-hidden">
+      <table className="w-full text-sm tabular-nums">
+        <thead className="bg-soft text-fg-muted text-[10px] uppercase tracking-[0.06em]">
+          <tr>
+            <th className="text-left px-3 py-2 w-10">#</th>
+            <th className="text-left px-3 py-2">Vencimento</th>
+            <th className="text-right px-3 py-2">Valor</th>
+          </tr>
+        </thead>
+        <tbody>
+          {schedule.map((p, i) => {
+            const isPast = p.dueDate < todayISO
+            const isNext = i === nextIdx
+            return (
+              <tr
+                key={p.index}
+                className={`border-t border-line ${isPast ? 'opacity-60' : ''} ${isNext ? 'bg-soft' : ''}`}
+              >
+                <td className="px-3 py-2 text-fg-muted">{p.index}</td>
+                <td className={`px-3 py-2 ${isNext ? 'font-medium text-fg' : 'text-fg'}`}>
+                  {isNext && <Icon name="calendar" className="inline w-3 h-3 mr-1 -mt-0.5 text-accent" />}
+                  {formatDateBR(p.dueDate)}
+                </td>
+                <td className="px-3 py-2 text-right tabular-nums">{brl(p.value)}</td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
     </div>
   )
 }

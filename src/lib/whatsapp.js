@@ -1,4 +1,5 @@
 import { brl, pct, formatDateBR, digitsOnly } from './format'
+import { buildSchedule } from './schedule'
 
 export function buildWhatsAppMessage({ calc, meta, settings }) {
   const lines = []
@@ -22,10 +23,34 @@ export function buildWhatsAppMessage({ calc, meta, settings }) {
   lines.push(`Valor de arremate: *${brl(calc.bid)}*`)
   lines.push(`Entrada (25%): ${brl(calc.entry)}`)
   lines.push(`Comissão leiloeiro (${pct(calc.commissionPct)}): ${brl(calc.commission)}`)
-  lines.push(`*Total à vista: ${brl(calc.upfront)}*`)
+  lines.push(`Carta de fiança${calc.suretyPct ? ` (${pct(calc.suretyPct)})` : ''}: ${brl(calc.surety ?? 0)}`)
+  lines.push(`*Custo inicial: ${brl(calc.upfront)}*`)
+  lines.push(`_Entrada + comissão + carta de fiança_`)
   lines.push('')
   lines.push(`Saldo a parcelar: ${brl(calc.remaining)}`)
   lines.push(`${calc.installments}x sem juros: ${brl(calc.installment)} /mês`)
+
+  // Margem estimada (R6) — quando revenda preenchida
+  if (calc.revendaEsperada > 0) {
+    const totalEfetivo = calc.bid + calc.commission + (calc.surety ?? 0)
+    const margem = calc.revendaEsperada - totalEfetivo
+    const margemPct = (margem / calc.revendaEsperada) * 100
+    const sinal = margem >= 0 ? '💰' : '⚠️'
+    lines.push('')
+    lines.push(`${sinal} *Margem estimada: ${brl(margem)} (${margemPct.toFixed(1)}%)*`)
+    lines.push(`_Revenda esperada: ${brl(calc.revendaEsperada)}_`)
+  }
+
+  // Cronograma resumo (R7) — primeira/última parcela quando data leilão preenchida
+  if (meta?.dataLeilao && calc.installments > 0) {
+    const intervalo = Number(calc.intervaloDias) || 30
+    const sched = buildSchedule(calc.installments, meta.dataLeilao, intervalo, calc.installment)
+    if (sched.length > 0) {
+      lines.push('')
+      lines.push(`📅 Primeira parcela: ${formatDateBR(sched[0].dueDate)} · Última: ${formatDateBR(sched[sched.length - 1].dueDate)}`)
+    }
+  }
+
   lines.push('')
   lines.push(`*Total geral: ${brl(calc.total)}*`)
 

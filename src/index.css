@@ -14,6 +14,19 @@
   --on-elevated: 255 255 255;  /* text on elevated     */
   --line:        232 232 237;  /* borders, dividers    */
 
+  --zone-ideal-bg: 254 243 199; /* amber-100 (legacy alias for --tier-good-bg) */
+  --zone-ideal-fg: 120  53  15; /* amber-900 (legacy alias for --tier-good-fg) */
+
+  /* Heatmap por tier (claro) — 4 faixas; bg = -bg-100, fg = -900 (WCAG AA) */
+  --tier-excellent-bg:   220 252 231; /* green-100  */
+  --tier-excellent-fg:    20  83  45; /* green-900  */
+  --tier-good-bg:        254 243 199; /* amber-100 — zona recomendada */
+  --tier-good-fg:        120  53  15; /* amber-900 */
+  --tier-marginal-bg:    255 237 213; /* orange-100 */
+  --tier-marginal-fg:    124  45  18; /* orange-900 */
+  --tier-over-market-bg: 254 226 226; /* red-100    */
+  --tier-over-market-fg: 127  29  29; /* red-900    */
+
   --bg-grad-a: #ffffff;
   --bg-grad-b: #eef2ff;
   --meta:      #f5f5f7;
@@ -29,6 +42,19 @@ html.dark {
   --fg-subtle:  110 110 115;
   --on-elevated: 11  11  13;
   --line:        29  29  31;
+
+  --zone-ideal-bg:  69  26   3; /* amber-950 (legacy alias for --tier-good-bg) */
+  --zone-ideal-fg: 252 211  77; /* amber-300 (legacy alias for --tier-good-fg) */
+
+  /* Heatmap por tier (escuro) — 4 faixas; bg = -950, fg = -300 (WCAG AA) */
+  --tier-excellent-bg:     5  46  22; /* green-950  */
+  --tier-excellent-fg:   134 239 172; /* green-300  */
+  --tier-good-bg:         69  26   3; /* amber-950 — zona recomendada */
+  --tier-good-fg:        252 211  77; /* amber-300 */
+  --tier-marginal-bg:     67  20   7; /* orange-950 */
+  --tier-marginal-fg:    253 186 116; /* orange-300 */
+  --tier-over-market-bg:  69  10  10; /* red-950    */
+  --tier-over-market-fg: 252 165 165; /* red-300    */
 
   --bg-grad-a: #1a1a1c;
   --bg-grad-b: #14141a;

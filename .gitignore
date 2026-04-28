@@ -5,3 +5,6 @@ dist
 .vite
 *.log
 .DS_Store
+
+# Claude Code local permissions cache
+.claude/settings.local.json
