@@ -7,8 +7,9 @@ import { HistoryModal } from './components/HistoryModal'
 import { ProfileModal } from './components/ProfileModal'
 import { AuthScreen } from './components/AuthScreen'
 import { calculate } from './lib/calc'
-import { buildScenarioMatrix, IDEAL_ZONE } from './lib/scenarios'
-import { brl, formatBRLInput, parseBRL, pct } from './lib/format'
+import { buildScenarioMatrix, DEFAULT_THRESHOLDS, TIER_LABELS } from './lib/scenarios'
+import { buildSchedule } from './lib/schedule'
+import { brl, formatBRLInput, parseBRL, pct, formatDateBR } from './lib/format'
 import { openPDF } from './lib/pdf'
 import { useTheme } from './lib/theme'
 import { useAuth } from './lib/auth'
@@ -56,6 +57,8 @@ function Calculator({ userId, theme, toggleTheme }) {
   const [installments, setInstallments] = useState(DEFAULT_INSTALLMENTS)
   const [suretyPctStr, setSuretyPctStr] = useState('')
   const [suretyTouched, setSuretyTouched] = useState(false)
+  const [revendaStr, setRevendaStr] = useState('')
+  const [intervaloDiasStr, setIntervaloDiasStr] = useState('30')
   const [meta, setMeta] = useState(EMPTY_META)
 
   const [history, setHistory] = useState([])
@@ -127,12 +130,50 @@ function Calculator({ userId, theme, toggleTheme }) {
     [effectiveArremate, commissionPct, suretyPct, installments],
   )
 
+  // Thresholds vindos de Settings (com fallback aos defaults)
+  const thresholds = useMemo(() => ({
+    t1: settings?.viabilityT1 ?? DEFAULT_THRESHOLDS.t1,
+    t2: settings?.viabilityT2 ?? DEFAULT_THRESHOLDS.t2,
+    t3: settings?.viabilityT3 ?? DEFAULT_THRESHOLDS.t3,
+  }), [settings])
+
   const scenarios = useMemo(() => buildScenarioMatrix({
     appraisal,
     commissionPct,
     suretyPct,
     installments,
-  }), [appraisal, commissionPct, suretyPct, installments])
+    thresholds,
+  }), [appraisal, commissionPct, suretyPct, installments, thresholds])
+
+  const revenda = useMemo(() => parseBRL(revendaStr), [revendaStr])
+  const intervaloDias = useMemo(() => {
+    const n = parseInt(intervaloDiasStr, 10)
+    return Number.isFinite(n) && n > 0 ? n : 30
+  }, [intervaloDiasStr])
+
+  // Margem bruta — só quando revenda > 0 e há um arremate efetivo
+  const margin = useMemo(() => {
+    if (!(revenda > 0) || calc.bid <= 0) return null
+    const totalEfetivo = calc.bid + calc.commission + calc.surety
+    const value = revenda - totalEfetivo
+    const pctVal = (value / revenda) * 100
+    return { value, pct: pctVal }
+  }, [revenda, calc])
+
+  // Cronograma — derivado, só com data leilão preenchida
+  const schedule = useMemo(() => {
+    if (!meta.dataLeilao || calc.installments <= 0) return []
+    return buildSchedule(calc.installments, meta.dataLeilao, intervaloDias, calc.installment)
+  }, [meta.dataLeilao, calc.installments, calc.installment, intervaloDias])
+
+  // Tier do cenário ativo (Resumo badge)
+  const activeTier = useMemo(() => {
+    if (mode === 'scenarios' && selectedDiscountPct != null) {
+      const row = scenarios.find(r => r.pct === selectedDiscountPct)
+      return row?.tier ?? null
+    }
+    return null
+  }, [mode, selectedDiscountPct, scenarios])
 
   const hasValue = effectiveArremate > 0
   const canAct = mode === 'fixed' ? hasValue : (selectedDiscountPct != null && appraisal > 0)
@@ -166,6 +207,8 @@ function Calculator({ userId, theme, toggleTheme }) {
       base.appraisal = appraisal
       base.discountPct = selectedDiscountPct
     }
+    if (revenda > 0) base.revendaEsperada = revenda
+    if (intervaloDias !== 30) base.intervaloDias = intervaloDias
     return base
   }
 
@@ -205,6 +248,10 @@ function Calculator({ userId, theme, toggleTheme }) {
       setSelectedDiscountPct(null)
     }
 
+    // Fase 2 — restaura revenda e intervalo (D-26)
+    setRevendaStr(c.revendaEsperada > 0 ? formatBRLInput(String(Math.round(c.revendaEsperada * 100))) : '')
+    setIntervaloDiasStr(String(c.intervaloDias ?? 30))
+
     showToast('Cálculo carregado')
   }
 
@@ -227,9 +274,15 @@ function Calculator({ userId, theme, toggleTheme }) {
     }
   }
 
+  const calcForExport = useMemo(() => ({
+    ...calc,
+    revendaEsperada: revenda > 0 ? revenda : undefined,
+    intervaloDias,
+  }), [calc, revenda, intervaloDias])
+
   const handlePDF = () => {
     if (!canAct) return showToast(mode === 'scenarios' ? 'Selecione um cenário' : 'Informe o valor de arremate')
-    openPDF({ calc, meta, settings })
+    openPDF({ calc: calcForExport, meta, settings })
   }
   const handleWA = () => {
     if (!canAct) return showToast(mode === 'scenarios' ? 'Selecione um cenário' : 'Informe o valor de arremate')
@@ -242,6 +295,8 @@ function Calculator({ userId, theme, toggleTheme }) {
     setSelectedDiscountPct(null)
     setCommissionPct(DEFAULT_COMMISSION)
     setInstallments(DEFAULT_INSTALLMENTS)
+    setRevendaStr('')
+    setIntervaloDiasStr('30')
     setMeta(EMPTY_META)
   }
 
@@ -330,7 +385,7 @@ function Calculator({ userId, theme, toggleTheme }) {
             </div>
           )}
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
             <div className="flex flex-col">
               <div className="flex justify-between items-baseline gap-2 min-h-[20px]">
                 <label className="label">Comissão</label>
@@ -390,6 +445,24 @@ function Calculator({ userId, theme, toggleTheme }) {
               </div>
               <p className="text-[11px] text-fg-muted mt-1.5">Sem juros</p>
             </div>
+
+            <div className="flex flex-col">
+              <div className="flex justify-between items-baseline gap-2 min-h-[20px]">
+                <label className="label">Revenda esperada</label>
+                <span className="text-[11px] text-fg-muted whitespace-nowrap">Opcional</span>
+              </div>
+              <div className="mt-2 relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-fg-subtle text-sm">R$</span>
+                <input
+                  inputMode="decimal"
+                  className="input !pl-9 tabular-nums h-11"
+                  value={revendaStr}
+                  onChange={e => setRevendaStr(formatBRLInput(e.target.value))}
+                  placeholder="0,00"
+                />
+              </div>
+              <p className="text-[11px] text-fg-muted mt-1.5">Para estimar margem</p>
+            </div>
           </div>
 
           {mode === 'scenarios' && (
@@ -398,6 +471,7 @@ function Calculator({ userId, theme, toggleTheme }) {
               selected={selectedDiscountPct}
               onSelect={setSelectedDiscountPct}
               hasInput={appraisal > 0}
+              revenda={revenda}
             />
           )}
 
@@ -456,6 +530,18 @@ function Calculator({ userId, theme, toggleTheme }) {
                   <input type="date" className="input" value={meta.dataLeilao} onChange={e => updateMeta('dataLeilao', e.target.value)} />
                 </Field>
               </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Field label="Intervalo entre parcelas (dias)">
+                  <input
+                    type="number" min="1" max="365" step="1"
+                    className="input tabular-nums"
+                    value={intervaloDiasStr}
+                    onChange={e => setIntervaloDiasStr(e.target.value)}
+                    placeholder="30"
+                  />
+                  <span className="text-[11px] text-fg-muted block mt-1">Estimado — confirme com o edital</span>
+                </Field>
+              </div>
             </div>
           </details>
 
@@ -471,9 +557,12 @@ function Calculator({ userId, theme, toggleTheme }) {
         {/* Results */}
         <section className="lg:sticky lg:top-24 self-start min-w-0">
           <div className="card p-5 sm:p-7">
-            <div className="flex items-baseline justify-between gap-2">
+            <div className="flex items-baseline justify-between gap-2 flex-wrap">
               <h2 className="text-lg font-semibold text-fg">Resumo</h2>
-              {canAct && <span className="text-xs text-fg-muted whitespace-nowrap">{pct(commissionPct)} · {calc.installments}x</span>}
+              <div className="flex items-center gap-2 flex-wrap">
+                {canAct && activeTier && <ViabilityBadge tier={activeTier} />}
+                {canAct && <span className="text-xs text-fg-muted whitespace-nowrap">{pct(commissionPct)} · {calc.installments}x</span>}
+              </div>
             </div>
 
             {!canAct && mode === 'scenarios' ? (
@@ -491,6 +580,16 @@ function Calculator({ userId, theme, toggleTheme }) {
                   <div className="text-[11px] uppercase tracking-[0.08em] font-medium opacity-60">Custo inicial</div>
                   <div className="text-3xl sm:text-[34px] font-semibold tabular-nums mt-1 leading-tight">{brl(calc.upfront)}</div>
                   <div className="text-xs mt-1.5 opacity-60">Entrada + comissão + carta de fiança</div>
+                  {margin && (
+                    <div className="text-xs mt-2 pt-2 border-t" style={{ borderColor: 'rgba(255,255,255,0.15)' }}>
+                      <span className="opacity-60">Margem estimada: </span>
+                      <span className="font-semibold tabular-nums" style={{
+                        color: margin.value >= 0 ? 'rgb(var(--tier-excellent-fg))' : 'rgb(var(--tier-over-market-fg))',
+                      }}>
+                        {brl(margin.value)} ({margin.pct.toFixed(1)}%)
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
@@ -520,6 +619,24 @@ function Calculator({ userId, theme, toggleTheme }) {
                   <span className="stat-label">Total geral</span>
                   <span className="stat-strong">{brl(calc.total)}</span>
                 </div>
+
+                {/* Cronograma — mobile (details dentro do Resumo) */}
+                {canAct && (
+                  <details className="md:hidden mt-2 group rounded-xl border border-line bg-soft/40 hover:bg-soft transition-colors open:bg-surface">
+                    <summary className="flex items-center justify-between cursor-pointer select-none px-4 py-3 list-none">
+                      <span className="flex items-center gap-2 text-sm font-medium text-fg">
+                        <Icon name="calendar" className="w-4 h-4 text-fg-muted" />
+                        {schedule.length > 0
+                          ? `Ver cronograma (${schedule.length} parcelas)`
+                          : 'Cronograma de pagamento'}
+                      </span>
+                      <Icon name="chevron-down" className="w-4 h-4 text-fg-subtle group-open:rotate-180 transition-transform" />
+                    </summary>
+                    <div className="px-4 pb-4 pt-1 border-t border-line">
+                      <ScheduleContent schedule={schedule} hasDate={!!meta.dataLeilao} />
+                    </div>
+                  </details>
+                )}
               </div>
             )}
 
@@ -533,6 +650,17 @@ function Calculator({ userId, theme, toggleTheme }) {
             </div>
           </div>
 
+          {/* Cronograma — desktop (card separado abaixo do Resumo) */}
+          {canAct && (
+            <div className="hidden md:block card p-5 sm:p-7 mt-4">
+              <div className="flex items-center gap-2 mb-4">
+                <Icon name="calendar" className="w-4 h-4 text-fg-muted" />
+                <h3 className="text-sm font-semibold text-fg">Cronograma de pagamento</h3>
+              </div>
+              <ScheduleContent schedule={schedule} hasDate={!!meta.dataLeilao} />
+            </div>
+          )}
+
           <p className="text-[11px] text-fg-muted text-center mt-4 px-4">
             Os valores são referenciais. Confira com o edital do leilão antes de informar o comprador.
           </p>
@@ -541,7 +669,7 @@ function Calculator({ userId, theme, toggleTheme }) {
 
       {/* Modals */}
       <SettingsModal open={openSettings} onClose={() => setOpenSettings(false)} settings={settings} onSave={handleSaveSettings} />
-      <WhatsAppModal open={openWA} onClose={() => setOpenWA(false)} calc={calc} meta={meta} settings={settings} />
+      <WhatsAppModal open={openWA} onClose={() => setOpenWA(false)} calc={calcForExport} meta={meta} settings={settings} />
       <HistoryModal open={openHistory} onClose={() => setOpenHistory(false)} items={history} onLoad={handleLoad} onDelete={handleDelete} />
       <ProfileModal open={openProfile} onClose={() => setOpenProfile(false)} onToast={showToast} />
 
@@ -579,7 +707,7 @@ function Calculator({ userId, theme, toggleTheme }) {
   )
 }
 
-function ScenariosMatrix({ scenarios, selected, onSelect, hasInput }) {
+function ScenariosMatrix({ scenarios, selected, onSelect, hasInput, revenda = 0 }) {
   if (!hasInput) {
     return (
       <div className="rounded-xl bg-soft border border-line p-6 text-center text-sm text-fg-muted">
@@ -588,10 +716,19 @@ function ScenariosMatrix({ scenarios, selected, onSelect, hasInput }) {
     )
   }
 
+  const showMargin = revenda > 0
+
   const tierStyle = (row) => ({
     background: `rgb(var(--tier-${row.tier}-bg))`,
     color: `rgb(var(--tier-${row.tier}-fg))`,
   })
+
+  const marginFor = (row) => {
+    const totalEfetivo = row.bid + row.commission + row.surety
+    const value = revenda - totalEfetivo
+    const pctVal = revenda > 0 ? (value / revenda) * 100 : 0
+    return { value, pct: pctVal }
+  }
 
   return (
     <div className="min-w-0">
@@ -609,6 +746,7 @@ function ScenariosMatrix({ scenarios, selected, onSelect, hasInput }) {
               <th className="text-right px-3 py-2.5">Carta fiança</th>
               <th className="text-right px-3 py-2.5">Custo inicial</th>
               <th className="text-right px-3 py-2.5">Parcela</th>
+              {showMargin && <th className="text-right px-3 py-2.5">Margem %</th>}
             </tr>
           </thead>
           <tbody>
@@ -638,6 +776,14 @@ function ScenariosMatrix({ scenarios, selected, onSelect, hasInput }) {
                   <td className="px-3 py-2 text-right">{brl(row.surety)}</td>
                   <td className="px-3 py-2 text-right font-semibold">{brl(row.upfront)}</td>
                   <td className="px-3 py-2 text-right">{brl(row.installment)}</td>
+                  {showMargin && (() => {
+                    const m = marginFor(row)
+                    return (
+                      <td className="px-3 py-2 text-right font-medium">
+                        {m.pct.toFixed(1)}%
+                      </td>
+                    )
+                  })()}
                 </tr>
               )
             })}
@@ -669,6 +815,15 @@ function ScenariosMatrix({ scenarios, selected, onSelect, hasInput }) {
                 <span className="opacity-70">Carta fiança</span><span className="text-right tabular-nums">{brl(row.surety)}</span>
                 <span className="opacity-70 font-semibold">Custo inicial</span><span className="text-right tabular-nums font-semibold">{brl(row.upfront)}</span>
                 <span className="opacity-70">Parcela</span><span className="text-right tabular-nums">{brl(row.installment)}</span>
+                {showMargin && (() => {
+                  const m = marginFor(row)
+                  return (
+                    <>
+                      <span className="opacity-70">Margem</span>
+                      <span className="text-right tabular-nums font-medium">{m.pct.toFixed(1)}%</span>
+                    </>
+                  )
+                })()}
               </div>
             </button>
           )
@@ -780,6 +935,69 @@ function Row({ k, v, strong }) {
     <div className="flex justify-between items-baseline">
       <span className="text-fg-muted">{k}</span>
       <span className={strong ? 'font-semibold text-fg tabular-nums' : 'text-fg tabular-nums'}>{v}</span>
+    </div>
+  )
+}
+
+function ViabilityBadge({ tier }) {
+  const label = TIER_LABELS[tier] || tier
+  return (
+    <span
+      className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium whitespace-nowrap"
+      style={{
+        background: `rgb(var(--tier-${tier}-bg))`,
+        color: `rgb(var(--tier-${tier}-fg))`,
+      }}
+      title={`Faixa de viabilidade: ${label}`}
+    >
+      {label}
+    </span>
+  )
+}
+
+function ScheduleContent({ schedule, hasDate }) {
+  if (!hasDate) {
+    return (
+      <p className="text-sm text-fg-muted">
+        Informe a data do leilão em <span className="font-medium">"Adicionar detalhes do arremate"</span> para gerar o cronograma.
+      </p>
+    )
+  }
+  if (!schedule || schedule.length === 0) {
+    return <p className="text-sm text-fg-muted">Sem parcelas para exibir.</p>
+  }
+  const todayISO = new Date().toISOString().slice(0, 10)
+  const nextIdx = schedule.findIndex(p => p.dueDate >= todayISO)
+  return (
+    <div className="rounded-lg border border-line overflow-hidden">
+      <table className="w-full text-sm tabular-nums">
+        <thead className="bg-soft text-fg-muted text-[10px] uppercase tracking-[0.06em]">
+          <tr>
+            <th className="text-left px-3 py-2 w-10">#</th>
+            <th className="text-left px-3 py-2">Vencimento</th>
+            <th className="text-right px-3 py-2">Valor</th>
+          </tr>
+        </thead>
+        <tbody>
+          {schedule.map((p, i) => {
+            const isPast = p.dueDate < todayISO
+            const isNext = i === nextIdx
+            return (
+              <tr
+                key={p.index}
+                className={`border-t border-line ${isPast ? 'opacity-60' : ''} ${isNext ? 'bg-soft' : ''}`}
+              >
+                <td className="px-3 py-2 text-fg-muted">{p.index}</td>
+                <td className={`px-3 py-2 ${isNext ? 'font-medium text-fg' : 'text-fg'}`}>
+                  {isNext && <Icon name="calendar" className="inline w-3 h-3 mr-1 -mt-0.5 text-accent" />}
+                  {formatDateBR(p.dueDate)}
+                </td>
+                <td className="px-3 py-2 text-right tabular-nums">{brl(p.value)}</td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
     </div>
   )
 }

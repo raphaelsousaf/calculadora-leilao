@@ -17,6 +17,8 @@ export function Icon({ name, className = 'w-5 h-5' }) {
       return (<svg viewBox="0 0 24 24" className={className} {...common}><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M6 6l1 14a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-14"/></svg>)
     case 'calculator':
       return (<svg viewBox="0 0 24 24" className={className} {...common}><rect x="4" y="3" width="16" height="18" rx="3"/><path d="M8 7h8M8 12h.01M12 12h.01M16 12h.01M8 16h.01M12 16h.01M16 16h4"/></svg>)
+    case 'calendar':
+      return (<svg viewBox="0 0 24 24" className={className} {...common}><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v4M16 3v4"/></svg>)
     case 'plus':
       return (<svg viewBox="0 0 24 24" className={className} {...common}><path d="M12 5v14M5 12h14"/></svg>)
     case 'minus':
