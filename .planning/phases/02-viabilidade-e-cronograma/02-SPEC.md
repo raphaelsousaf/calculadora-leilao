@@ -27,7 +27,7 @@ Após a Fase 1, o usuário consegue ver múltiplos cenários, mas precisa decidi
 3. **Cronograma de parcelas com datas**: parcelas ganham datas estimadas a partir da data do leilão.
    - Current: app exibe apenas valor da parcela e quantidade
    - Target: novo painel "Cronograma" com tabela de N parcelas (data de vencimento estimada = data leilão + 30, 60, 90… dias); intervalo padrão 30 dias, configurável por cálculo; se data do leilão não preenchida, painel exibe placeholder "Informe a data do leilão para gerar o cronograma"
-   - Acceptance: data leilão = 2026-05-01, 30x → primeira parcela em 2026-05-31, última em 2028-10-27; alterar intervalo para 45 dias recalcula todas as datas
+   - Acceptance: data leilão = 2026-05-01, 30x intervalo 30 → primeira parcela em 2026-05-31, última em 2028-10-17; alterar intervalo para 45 dias recalcula todas as datas
 
 4. **Cronograma e margem no PDF e WhatsApp**: exportações refletem os novos campos.
    - Current: PDF e WhatsApp não mostram cronograma nem margem

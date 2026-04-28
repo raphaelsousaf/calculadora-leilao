@@ -21,7 +21,9 @@
       "Bash(git -C ../../.. show 6f55f2d --stat 7030cba --stat fbb0689 --stat)",
       "Bash(git -C ../../.. show fbb0689:src/App.jsx)",
       "Read(//tmp/**)",
-      "Bash(git commit -m 'ui: restaura menu suspenso do header \\(perfil, configurações, tema\\) *)"
+      "Bash(git commit -m 'ui: restaura menu suspenso do header \\(perfil, configurações, tema\\) *)",
+      "Bash(node __TRACKED_VAR__/.claude/get-shit-done/bin/gsd-tools.cjs init phase-op 2)",
+      "Bash(node __TRACKED_VAR__/.claude/get-shit-done/bin/gsd-tools.cjs init plan-phase 2)"
     ]
   }
 }

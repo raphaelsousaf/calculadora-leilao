@@ -173,7 +173,7 @@ Downstream agents DEVEM ler `02-SPEC.md` antes de planejar/implementar.
   - `margem = 58000 − 45155,25 = R$12.844,75`
   - `margem % = 12844,75 / 58000 × 100 ≈ 22,15%`
   - Tier (default thresholds 70/85/95): 70 está exatamente em T1 → faixa "Excelente" se intervalo é `≤T1`, "Bom" se `<T1`. **Decisão de borda:** usar `<=` para Excelente (i.e., 70 inclusive ainda é Excelente). Documentar isso.
-  - Cronograma: primeira parcela 31/05/2026, última 27/10/2028 (30 vencimentos, 30 dias cada)
+  - Cronograma: primeira parcela 31/05/2026, última 17/10/2028 (30 vencimentos, 30 dias cada — 900 dias)
 - **Tier 70 inclusive ou exclusive em T1?** → **inclusive** (`pct <= T1` = Excelente). Mesmo critério para T2 e T3.
 - **Sublabel da margem no hero-stat:** "Margem estimada: R$ 12.844,75 (22,1%)" — formato fixo.
 - **Cor da margem no Resumo e na coluna:** se `margem > 0` → `text-tier-excellent-fg`; se `< 0` → `text-tier-over-market-fg`; se `= 0` → `text-fg-muted`.

@@ -588,11 +588,10 @@ function ScenariosMatrix({ scenarios, selected, onSelect, hasInput }) {
     )
   }
 
-  const tierStyle = (row) => {
-    const bg = row.tier === 'ideal' ? 'var(--zone-ideal-bg)' : `var(--tier-${row.tier}-bg)`
-    const fg = row.tier === 'ideal' ? 'var(--zone-ideal-fg)' : `var(--tier-${row.tier}-fg)`
-    return { background: `rgb(${bg})`, color: `rgb(${fg})` }
-  }
+  const tierStyle = (row) => ({
+    background: `rgb(var(--tier-${row.tier}-bg))`,
+    color: `rgb(var(--tier-${row.tier}-fg))`,
+  })
 
   return (
     <div className="min-w-0">
