@@ -409,7 +409,12 @@ function Calculator({ userId, theme, toggleTheme }) {
 
             <div className="flex flex-col">
               <div className="flex justify-between items-baseline gap-2 min-h-[20px]">
-                <label className="label">Carta de fiança</label>
+                <label className="label">Carta fiança</label>
+                <button
+                  className="text-[11px] text-accent hover:text-accent-hover whitespace-nowrap"
+                  onClick={() => { setSuretyPctStr(suretyPlaceholder); setSuretyTouched(true) }}
+                  type="button"
+                >Padrão {suretyPlaceholder}%</button>
               </div>
               <div className="mt-2 relative">
                 <input
@@ -421,7 +426,7 @@ function Calculator({ userId, theme, toggleTheme }) {
                 />
                 <span className="absolute right-4 top-1/2 -translate-y-1/2 text-fg-subtle">%</span>
               </div>
-              <p className="text-[11px] text-fg-muted mt-1.5">% sobre o saldo a parcelar</p>
+              <p className="text-[11px] text-fg-muted mt-1.5">% sobre o saldo</p>
             </div>
 
             <div className="flex flex-col">
@@ -448,20 +453,20 @@ function Calculator({ userId, theme, toggleTheme }) {
 
             <div className="flex flex-col">
               <div className="flex justify-between items-baseline gap-2 min-h-[20px]">
-                <label className="label">Revenda esperada</label>
+                <label className="label">Revenda</label>
                 <span className="text-[11px] text-fg-muted whitespace-nowrap">Opcional</span>
               </div>
               <div className="mt-2 relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-fg-subtle text-sm">R$</span>
+                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-fg-subtle text-sm">R$</span>
                 <input
                   inputMode="decimal"
-                  className="input !pl-9 tabular-nums h-11"
+                  className="input !pl-10 tabular-nums h-11"
                   value={revendaStr}
                   onChange={e => setRevendaStr(formatBRLInput(e.target.value))}
                   placeholder="0,00"
                 />
               </div>
-              <p className="text-[11px] text-fg-muted mt-1.5">Para estimar margem</p>
+              <p className="text-[11px] text-fg-muted mt-1.5">Estimar margem</p>
             </div>
           </div>
 

@@ -23,7 +23,8 @@
       "Read(//tmp/**)",
       "Bash(git commit -m 'ui: restaura menu suspenso do header \\(perfil, configurações, tema\\) *)",
       "Bash(node __TRACKED_VAR__/.claude/get-shit-done/bin/gsd-tools.cjs init phase-op 2)",
-      "Bash(node __TRACKED_VAR__/.claude/get-shit-done/bin/gsd-tools.cjs init plan-phase 2)"
+      "Bash(node __TRACKED_VAR__/.claude/get-shit-done/bin/gsd-tools.cjs init plan-phase 2)",
+      "Bash(git commit -m 'ui: alinha 4 inputs do grid principal — labels curtos, prefix simétrico *)"
     ]
   }
 }
