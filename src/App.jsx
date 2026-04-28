@@ -1093,9 +1093,9 @@ function ScenarioComparator({ scenarios, pinnedPcts, revenda, onClear, onUnpin }
             >
               <Icon name="close" className="w-3.5 h-3.5" />
             </button>
-            <div className="flex items-baseline gap-2 mb-3 pr-6">
-              <span className="text-3xl font-bold tabular-nums">{row.pct}%</span>
-              <ViabilityBadge tier={row.tier} />
+            <div className="flex flex-col gap-1.5 mb-3 pr-6">
+              <span className="text-3xl font-bold tabular-nums leading-none">{row.pct}%</span>
+              <span className="self-start"><ViabilityBadge tier={row.tier} /></span>
             </div>
             <dl className="space-y-1.5 text-sm">
               {items.map(it => (
