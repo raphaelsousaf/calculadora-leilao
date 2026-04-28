@@ -306,7 +306,7 @@ function Calculator({ userId, theme, toggleTheme }) {
   return (
     <div className="min-h-screen pb-20">
       <header className="sticky top-0 z-30 glass">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-3.5 flex items-center justify-between gap-3">
+        <div className="w-full px-4 sm:px-6 lg:px-8 py-3.5 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2.5 min-w-0">
             <div className="w-8 h-8 rounded-lg flex items-center justify-center shadow-soft"
                  style={{ background: 'rgb(var(--elevated))', color: 'rgb(var(--on-elevated))' }}>

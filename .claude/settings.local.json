@@ -25,7 +25,8 @@
       "Bash(node __TRACKED_VAR__/.claude/get-shit-done/bin/gsd-tools.cjs init phase-op 2)",
       "Bash(node __TRACKED_VAR__/.claude/get-shit-done/bin/gsd-tools.cjs init plan-phase 2)",
       "Bash(git commit -m 'ui: alinha 4 inputs do grid principal — labels curtos, prefix simétrico *)",
-      "Bash(git commit -m 'ui: corrige wrap do label Carta fiança em colunas estreitas *)"
+      "Bash(git commit -m 'ui: corrige wrap do label Carta fiança em colunas estreitas *)",
+      "Bash(git commit -m 'ui: header full-width — elementos próximos das bordas *)"
     ]
   }
 }
