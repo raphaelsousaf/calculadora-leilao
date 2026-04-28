@@ -62,6 +62,7 @@ function Calculator({ userId, theme, toggleTheme }) {
   const [revendaStr, setRevendaStr] = useState('')
   const [intervaloDiasStr, setIntervaloDiasStr] = useState('30')
   const [meta, setMeta] = useState(EMPTY_META)
+  const [pinnedPcts, setPinnedPcts] = useState([])  // session-only (D-40)
 
   const [history, setHistory] = useState([])
   const [settings, setSettings] = useState({})
@@ -479,6 +480,27 @@ function Calculator({ userId, theme, toggleTheme }) {
               onSelect={setSelectedDiscountPct}
               hasInput={appraisal > 0}
               revenda={revenda}
+              pinned={pinnedPcts}
+              onTogglePin={(pct) => {
+                setPinnedPcts(prev => {
+                  if (prev.includes(pct)) return prev.filter(p => p !== pct)
+                  if (prev.length >= 3) {
+                    showToast('Máximo 3 cenários — desfixe um primeiro')
+                    return prev
+                  }
+                  return [...prev, pct]
+                })
+              }}
+            />
+          )}
+
+          {mode === 'scenarios' && pinnedPcts.length > 0 && (
+            <ScenarioComparator
+              scenarios={scenarios}
+              pinnedPcts={pinnedPcts}
+              revenda={revenda}
+              onClear={() => setPinnedPcts([])}
+              onUnpin={(pct) => setPinnedPcts(prev => prev.filter(p => p !== pct))}
             />
           )}
 
@@ -728,7 +750,7 @@ function Calculator({ userId, theme, toggleTheme }) {
   )
 }
 
-function ScenariosMatrix({ scenarios, selected, onSelect, hasInput, revenda = 0 }) {
+function ScenariosMatrix({ scenarios, selected, onSelect, hasInput, revenda = 0, pinned = [], onTogglePin }) {
   if (!hasInput) {
     return (
       <div className="rounded-xl bg-soft border border-line p-6 text-center text-sm text-fg-muted">
@@ -759,6 +781,7 @@ function ScenariosMatrix({ scenarios, selected, onSelect, hasInput, revenda = 0 
           <caption className="sr-only">Cenários de desconto</caption>
           <thead className="bg-soft text-fg-muted text-[11px] uppercase tracking-[0.06em]">
             <tr>
+              <th className="text-left px-2 py-2.5 w-8" aria-label="Fixar"></th>
               <th className="text-left px-3 py-2.5">%</th>
               <th className="text-right px-3 py-2.5">Arrematação</th>
               <th className="text-right px-3 py-2.5">Entrada</th>
@@ -790,6 +813,17 @@ function ScenariosMatrix({ scenarios, selected, onSelect, hasInput, revenda = 0 
                   style={tierStyle(row)}
                   className={`border-t border-line cursor-pointer transition-colors hover:brightness-95 ${isSel ? 'ring-2 ring-accent ring-inset' : ''}`}
                 >
+                  <td className="px-2 py-2">
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); onTogglePin?.(row.pct) }}
+                      aria-label={pinned.includes(row.pct) ? `Desfixar cenário ${row.pct}%` : `Fixar cenário ${row.pct}%`}
+                      aria-pressed={pinned.includes(row.pct)}
+                      className={`w-7 h-7 rounded-md inline-flex items-center justify-center transition ${pinned.includes(row.pct) ? 'bg-accent text-white' : 'opacity-50 hover:opacity-100'}`}
+                    >
+                      <Icon name="pin" className="w-3.5 h-3.5" />
+                    </button>
+                  </td>
                   <td className="px-3 py-2 font-medium">{row.pct}%</td>
                   <td className="px-3 py-2 text-right">{brl(row.bid)}</td>
                   <td className="px-3 py-2 text-right">{brl(row.entry)}</td>
@@ -827,8 +861,21 @@ function ScenariosMatrix({ scenarios, selected, onSelect, hasInput, revenda = 0 
               style={tierStyle(row)}
               className={`w-full text-left rounded-xl border border-line p-4 transition-colors hover:brightness-95 ${isSel ? 'ring-2 ring-accent' : ''}`}
             >
-              <div className="flex items-baseline justify-between mb-3">
-                <span className="text-2xl font-bold tabular-nums">{row.pct}%</span>
+              <div className="flex items-baseline justify-between mb-3 gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-2xl font-bold tabular-nums">{row.pct}%</span>
+                  <span
+                    role="button"
+                    tabIndex={0}
+                    onClick={(e) => { e.stopPropagation(); onTogglePin?.(row.pct) }}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); onTogglePin?.(row.pct) } }}
+                    aria-label={pinned.includes(row.pct) ? `Desfixar ${row.pct}%` : `Fixar ${row.pct}%`}
+                    aria-pressed={pinned.includes(row.pct)}
+                    className={`w-7 h-7 rounded-md inline-flex items-center justify-center transition ${pinned.includes(row.pct) ? 'bg-accent text-white' : 'opacity-50 hover:opacity-100'}`}
+                  >
+                    <Icon name="pin" className="w-3.5 h-3.5" />
+                  </span>
+                </div>
                 <span className="text-sm font-semibold tabular-nums">{brl(row.bid)}</span>
               </div>
               <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs">
@@ -992,6 +1039,89 @@ function Row({ k, v, strong }) {
       <span className="text-fg-muted">{k}</span>
       <span className={strong ? 'font-semibold text-fg tabular-nums' : 'text-fg tabular-nums'}>{v}</span>
     </div>
+  )
+}
+
+function ScenarioComparator({ scenarios, pinnedPcts, revenda, onClear, onUnpin }) {
+  const rows = pinnedPcts
+    .map(p => scenarios.find(s => s.pct === p))
+    .filter(Boolean)
+  if (rows.length === 0) return null
+
+  const showMargin = revenda > 0
+
+  const marginPctFor = (row) => {
+    if (!showMargin) return null
+    const total = row.bid + row.commission + row.surety
+    return ((revenda - total) / revenda) * 100
+  }
+
+  const items = [
+    { key: 'bid', label: 'Arremate', fmt: (r) => brl(r.bid) },
+    { key: 'upfront', label: 'Custo inicial', fmt: (r) => brl(r.upfront), strong: true },
+    { key: 'pctArr', label: '% do arremate', fmt: (r) => r.bid > 0 ? (r.upfront / r.bid * 100).toFixed(1) + '%' : '—' },
+    { key: 'installment', label: 'Parcela', fmt: (r) => brl(r.installment) },
+  ]
+
+  return (
+    <section className="card p-5 sm:p-6 mt-5">
+      <header className="flex items-center justify-between gap-2 mb-4">
+        <h3 className="text-base font-semibold text-fg">
+          Comparar cenários <span className="text-fg-muted font-normal">({rows.length}/3)</span>
+        </h3>
+        <button
+          type="button"
+          onClick={onClear}
+          className="text-xs text-fg-muted hover:text-fg transition-colors"
+        >
+          Limpar comparação
+        </button>
+      </header>
+
+      {/* Desktop: 3 colunas alinhadas. Mobile: scroll horizontal com snap */}
+      <div className="flex gap-3 md:gap-4 overflow-x-auto md:overflow-visible snap-x snap-mandatory md:snap-none -mx-2 md:mx-0 px-2 md:px-0">
+        {rows.map((row) => (
+          <article
+            key={row.pct}
+            className="flex-shrink-0 w-[260px] md:w-auto md:flex-1 snap-center rounded-xl border border-line p-4 relative"
+            style={{
+              background: `rgb(var(--tier-${row.tier}-bg))`,
+              color: `rgb(var(--tier-${row.tier}-fg))`,
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => onUnpin(row.pct)}
+              aria-label={`Remover cenário ${row.pct}% da comparação`}
+              className="absolute top-2 right-2 w-6 h-6 rounded-md inline-flex items-center justify-center opacity-60 hover:opacity-100"
+            >
+              <Icon name="close" className="w-3.5 h-3.5" />
+            </button>
+            <div className="flex items-baseline gap-2 mb-3 pr-6">
+              <span className="text-3xl font-bold tabular-nums">{row.pct}%</span>
+              <ViabilityBadge tier={row.tier} />
+            </div>
+            <dl className="space-y-1.5 text-sm">
+              {items.map(it => (
+                <div key={it.key} className="flex justify-between items-baseline gap-3">
+                  <dt className="opacity-70 text-xs">{it.label}</dt>
+                  <dd className={`tabular-nums text-right ${it.strong ? 'font-semibold' : ''}`}>{it.fmt(row)}</dd>
+                </div>
+              ))}
+              {showMargin && (() => {
+                const m = marginPctFor(row)
+                return (
+                  <div className="flex justify-between items-baseline gap-3 pt-1.5 border-t" style={{ borderColor: 'currentColor', opacity: 0.3 }}>
+                    <dt className="opacity-100 text-xs font-medium" style={{ opacity: 1 }}>Margem</dt>
+                    <dd className="tabular-nums text-right font-semibold">{m.toFixed(1)}%</dd>
+                  </div>
+                )
+              })()}
+            </dl>
+          </article>
+        ))}
+      </div>
+    </section>
   )
 }
 
