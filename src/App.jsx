@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Icon } from './components/Icon'
+import { Tooltip } from './components/Tooltip'
+import { TOOLTIPS } from './lib/tooltips'
 import { Modal } from './components/Modal'
 import { SettingsModal } from './components/SettingsModal'
 import { WhatsAppModal } from './components/WhatsAppModal'
@@ -393,7 +395,7 @@ function Calculator({ userId, theme, toggleTheme }) {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
             <div className="flex flex-col">
               <div className="flex justify-between items-baseline gap-2 min-h-[20px]">
-                <label className="label">Comissão</label>
+                <span className="label inline-flex items-center gap-1">Comissão<Tooltip text={TOOLTIPS.commission} /></span>
                 <button
                   className="text-[11px] text-accent hover:text-accent-hover whitespace-nowrap"
                   onClick={() => setCommissionPct(DEFAULT_COMMISSION)}
@@ -414,7 +416,7 @@ function Calculator({ userId, theme, toggleTheme }) {
 
             <div className="flex flex-col">
               <div className="flex justify-between items-baseline gap-2 min-h-[20px]">
-                <label className="label">Carta fiança</label>
+                <span className="label inline-flex items-center gap-1">Carta fiança<Tooltip text={TOOLTIPS.surety} /></span>
               </div>
               <div className="mt-2 relative">
                 <input
@@ -582,12 +584,26 @@ function Calculator({ userId, theme, toggleTheme }) {
             ) : (
               <div className="mt-5 space-y-5">
                 <div className="hero-stat">
-                  <div className="text-[11px] uppercase tracking-[0.08em] font-medium opacity-60">Custo inicial</div>
+                  <div className="text-[11px] uppercase tracking-[0.08em] font-medium opacity-60 flex items-center gap-1">
+                    Custo inicial
+                    <Tooltip text={TOOLTIPS.upfront} />
+                  </div>
                   <div className="text-3xl sm:text-[34px] font-semibold tabular-nums mt-1 leading-tight">{brl(calc.upfront)}</div>
+                  {calc.upfront > 0 && calc.bid > 0 && (
+                    <CompositionBar entry={calc.entry} commission={calc.commission} surety={calc.surety} upfront={calc.upfront} />
+                  )}
                   <div className="text-xs mt-1.5 opacity-60">Entrada + comissão + carta de fiança</div>
+                  {calc.upfront > 0 && calc.bid > 0 && (
+                    <div className="text-[11px] opacity-60 mt-0.5">
+                      ({(calc.upfront / calc.bid * 100).toFixed(1)}% do arremate sai no dia)
+                    </div>
+                  )}
                   {margin && (
                     <div className="text-xs mt-2 pt-2 border-t" style={{ borderColor: 'rgba(255,255,255,0.15)' }}>
-                      <span className="opacity-60">Margem estimada: </span>
+                      <span className="opacity-60 inline-flex items-center gap-1">
+                        Margem estimada
+                        <Tooltip text={TOOLTIPS.margin} />:
+                      </span>{' '}
                       <span className="font-semibold tabular-nums" style={{
                         color: margin.value >= 0 ? 'rgb(var(--tier-excellent-fg))' : 'rgb(var(--tier-over-market-fg))',
                       }}>
@@ -598,12 +614,12 @@ function Calculator({ userId, theme, toggleTheme }) {
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
-                  <MiniStat label="Entrada (25%)" value={brl(calc.entry)} />
-                  <MiniStat label={`Comissão (${pct(commissionPct)})`} value={brl(calc.commission)} />
+                  <MiniStat label="Entrada (25%)" value={brl(calc.entry)} tooltip={TOOLTIPS.entry} />
+                  <MiniStat label={`Comissão (${pct(commissionPct)})`} value={brl(calc.commission)} tooltip={TOOLTIPS.commission} />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
-                  <MiniStat label={`Carta de fiança (${pct(suretyPct)})`} value={brl(calc.surety)} />
-                  <MiniStat label="Saldo a parcelar" value={brl(calc.remaining)} />
+                  <MiniStat label={`Carta de fiança (${pct(suretyPct)})`} value={brl(calc.surety)} tooltip={TOOLTIPS.surety} />
+                  <MiniStat label="Saldo a parcelar" value={brl(calc.remaining)} tooltip={TOOLTIPS.remaining} />
                 </div>
 
                 <div className="divider" />
@@ -750,6 +766,7 @@ function ScenariosMatrix({ scenarios, selected, onSelect, hasInput, revenda = 0 
               <th className="text-right px-3 py-2.5">Comissão</th>
               <th className="text-right px-3 py-2.5">Carta fiança</th>
               <th className="text-right px-3 py-2.5">Custo inicial</th>
+              <th className="text-right px-3 py-2.5">% Arremate</th>
               <th className="text-right px-3 py-2.5">Parcela</th>
               {showMargin && <th className="text-right px-3 py-2.5">Margem %</th>}
             </tr>
@@ -780,6 +797,7 @@ function ScenariosMatrix({ scenarios, selected, onSelect, hasInput, revenda = 0 
                   <td className="px-3 py-2 text-right">{brl(row.commission)}</td>
                   <td className="px-3 py-2 text-right">{brl(row.surety)}</td>
                   <td className="px-3 py-2 text-right font-semibold">{brl(row.upfront)}</td>
+                  <td className="px-3 py-2 text-right opacity-80">{row.bid > 0 ? (row.upfront / row.bid * 100).toFixed(1) + '%' : '—'}</td>
                   <td className="px-3 py-2 text-right">{brl(row.installment)}</td>
                   {showMargin && (() => {
                     const m = marginFor(row)
@@ -819,6 +837,7 @@ function ScenariosMatrix({ scenarios, selected, onSelect, hasInput, revenda = 0 
                 <span className="opacity-70">Comissão</span><span className="text-right tabular-nums">{brl(row.commission)}</span>
                 <span className="opacity-70">Carta fiança</span><span className="text-right tabular-nums">{brl(row.surety)}</span>
                 <span className="opacity-70 font-semibold">Custo inicial</span><span className="text-right tabular-nums font-semibold">{brl(row.upfront)}</span>
+                <span className="opacity-70">% do arremate</span><span className="text-right tabular-nums">{row.bid > 0 ? (row.upfront / row.bid * 100).toFixed(1) + '%' : '—'}</span>
                 <span className="opacity-70">Parcela</span><span className="text-right tabular-nums">{brl(row.installment)}</span>
                 {showMargin && (() => {
                   const m = marginFor(row)
@@ -926,11 +945,43 @@ function Field({ label, children }) {
   )
 }
 
-function MiniStat({ label, value }) {
+function MiniStat({ label, value, tooltip }) {
   return (
     <div className="mini-stat">
-      <div className="text-[10px] uppercase tracking-[0.08em] text-fg-muted font-medium">{label}</div>
+      <div className="text-[10px] uppercase tracking-[0.08em] text-fg-muted font-medium flex items-center gap-1">
+        {label}
+        {tooltip && <Tooltip text={tooltip} />}
+      </div>
       <div className="text-[15px] font-medium text-fg tabular-nums mt-0.5">{value}</div>
+    </div>
+  )
+}
+
+function CompositionBar({ entry, commission, surety, upfront }) {
+  if (upfront <= 0) return null
+  const pE = (entry / upfront) * 100
+  const pC = (commission / upfront) * 100
+  const pS = (surety / upfront) * 100
+  const segments = [
+    { label: 'Entrada', value: entry, pct: pE, bg: 'rgb(var(--fg))' },
+    { label: 'Comissão', value: commission, pct: pC, bg: 'rgb(var(--accent))' },
+    { label: 'Carta fiança', value: surety, pct: pS, bg: 'rgb(var(--fg-muted))' },
+  ]
+  return (
+    <div
+      className="mt-3 h-2 w-full flex rounded-full overflow-hidden"
+      style={{ background: 'rgba(255,255,255,0.08)' }}
+      role="img"
+      aria-label={`Composição: Entrada ${pE.toFixed(0)}%, Comissão ${pC.toFixed(0)}%, Carta de fiança ${pS.toFixed(0)}%`}
+    >
+      {segments.map((s, i) => s.pct > 0 && (
+        <span
+          key={i}
+          className="h-full block"
+          title={`${s.label}: R$ ${s.value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (${s.pct.toFixed(1)}%)`}
+          style={{ width: `${s.pct}%`, background: s.bg }}
+        />
+      ))}
     </div>
   )
 }
