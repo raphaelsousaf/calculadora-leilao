@@ -1,5 +1,6 @@
 import jsPDF from 'jspdf'
 import { brl, pct, formatDateBR } from './format'
+import { buildSchedule } from './schedule'
 
 export function buildPDF({ calc, meta, settings }) {
   const doc = new jsPDF({ unit: 'pt', format: 'a4' })
@@ -56,6 +57,17 @@ export function buildPDF({ calc, meta, settings }) {
     ['Total geral', brl(calc.total), true],
   ]
 
+  // Linha de margem antes de "Total geral" quando revenda preenchida
+  if (calc.revendaEsperada > 0) {
+    const totalEfetivo = calc.bid + calc.commission + (calc.surety ?? 0)
+    const margem = calc.revendaEsperada - totalEfetivo
+    const margemPct = (margem / calc.revendaEsperada) * 100
+    rows.splice(rows.length - 1, 0,
+      ['Revenda esperada', brl(calc.revendaEsperada)],
+      [`Margem estimada`, `${brl(margem)} (${margemPct.toFixed(1)}%)`, true]
+    )
+  }
+
   const rowHeight = (r) => 26 + (r[3] ? 12 : 0)
   const cardHeight = rows.reduce((acc, r) => acc + rowHeight(r), 0) + 20
 
@@ -79,6 +91,40 @@ export function buildPDF({ calc, meta, settings }) {
     }
     y += 26
   })
+
+  // Cronograma de pagamento (R7) — quando data leilão preenchida
+  if (meta?.dataLeilao && calc.installments > 0 && calc.installment > 0) {
+    const intervalo = Number(calc.intervaloDias) || 30
+    const sched = buildSchedule(calc.installments, meta.dataLeilao, intervalo, calc.installment)
+    if (sched.length > 0) {
+      // Quebra de página se necessário
+      const pageH = doc.internal.pageSize.getHeight()
+      if (y + 80 > pageH - 60) { doc.addPage(); y = 56 }
+
+      y += 24
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(12); doc.setTextColor('#1d1d1f')
+      doc.text('Cronograma de pagamento', M, y); y += 16
+
+      // Cabeçalho da tabela
+      const colX = { idx: M + 8, date: M + 60, value: W - M - 16 }
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor('#6e6e73')
+      doc.text('#', colX.idx, y)
+      doc.text('Vencimento', colX.date, y)
+      doc.text('Valor', colX.value, y, { align: 'right' })
+      y += 8
+      doc.setDrawColor('#e8e8ed'); doc.line(M, y, W - M, y); y += 12
+
+      // Linhas — fontSize=9 (cabe 30 parcelas)
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor('#1d1d1f')
+      sched.forEach((p) => {
+        if (y > pageH - 60) { doc.addPage(); y = 56 }
+        doc.text(String(p.index), colX.idx, y)
+        doc.text(formatDateBR(p.dueDate), colX.date, y)
+        doc.text(brl(p.value), colX.value, y, { align: 'right' })
+        y += 14
+      })
+    }
+  }
 
   y += 24
   doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor('#a1a1a6')
