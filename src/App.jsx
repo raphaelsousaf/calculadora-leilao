@@ -627,7 +627,7 @@ function Calculator({ userId, theme, toggleTheme }) {
                         <Tooltip text={TOOLTIPS.margin} />:
                       </span>{' '}
                       <span className="font-semibold tabular-nums" style={{
-                        color: margin.value >= 0 ? 'rgb(var(--tier-excellent-fg))' : 'rgb(var(--tier-over-market-fg))',
+                        color: margin.value >= 0 ? 'rgb(var(--hero-positive))' : 'rgb(var(--hero-negative))',
                       }}>
                         {brl(margin.value)} ({margin.pct.toFixed(1)}%)
                       </span>
@@ -1007,14 +1007,14 @@ function CompositionBar({ entry, commission, surety, upfront }) {
   const pC = (commission / upfront) * 100
   const pS = (surety / upfront) * 100
   const segments = [
-    { label: 'Entrada', value: entry, pct: pE, bg: 'rgb(var(--fg))' },
-    { label: 'Comissão', value: commission, pct: pC, bg: 'rgb(var(--accent))' },
-    { label: 'Carta fiança', value: surety, pct: pS, bg: 'rgb(var(--fg-muted))' },
+    { label: 'Entrada',      value: entry,      pct: pE, bg: 'rgb(var(--on-elevated) / 0.92)' },
+    { label: 'Comissão',     value: commission, pct: pC, bg: 'rgb(var(--accent))' },
+    { label: 'Carta fiança', value: surety,     pct: pS, bg: 'rgb(var(--on-elevated) / 0.45)' },
   ]
   return (
     <div
       className="mt-3 h-2 w-full flex rounded-full overflow-hidden"
-      style={{ background: 'rgba(255,255,255,0.08)' }}
+      style={{ background: 'rgb(var(--on-elevated) / 0.15)' }}
       role="img"
       aria-label={`Composição: Entrada ${pE.toFixed(0)}%, Comissão ${pC.toFixed(0)}%, Carta de fiança ${pS.toFixed(0)}%`}
     >
