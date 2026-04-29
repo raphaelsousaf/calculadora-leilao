@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Icon } from './components/Icon'
+import { Tooltip } from './components/Tooltip'
+import { TOOLTIPS } from './lib/tooltips'
 import { Modal } from './components/Modal'
 import { SettingsModal } from './components/SettingsModal'
 import { WhatsAppModal } from './components/WhatsAppModal'
@@ -60,6 +62,7 @@ function Calculator({ userId, theme, toggleTheme }) {
   const [revendaStr, setRevendaStr] = useState('')
   const [intervaloDiasStr, setIntervaloDiasStr] = useState('30')
   const [meta, setMeta] = useState(EMPTY_META)
+  const [pinnedPcts, setPinnedPcts] = useState([])  // session-only (D-40)
 
   const [history, setHistory] = useState([])
   const [settings, setSettings] = useState({})
@@ -180,13 +183,8 @@ function Calculator({ userId, theme, toggleTheme }) {
 
   const switchMode = (next) => {
     if (next === mode) return
-    if (next === 'scenarios') {
-      setArremateStr('')
-      setSelectedDiscountPct(null)
-    } else {
-      setAppraisalStr('')
-      setSelectedDiscountPct(null)
-    }
+    // Preserva inputs de ambos os modos para o usuário poder ir e vir sem perder dados.
+    // Limpeza só pelo botão "Limpar".
     setMode(next)
   }
 
@@ -303,6 +301,7 @@ function Calculator({ userId, theme, toggleTheme }) {
     setRevendaStr('')
     setIntervaloDiasStr('30')
     setMeta(EMPTY_META)
+    setPinnedPcts([])
   }
 
   const subcats = CATEGORIES[meta.categoria] || []
@@ -393,7 +392,7 @@ function Calculator({ userId, theme, toggleTheme }) {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
             <div className="flex flex-col">
               <div className="flex justify-between items-baseline gap-2 min-h-[20px]">
-                <label className="label">Comissão</label>
+                <span className="label inline-flex items-center gap-1">Comissão<Tooltip text={TOOLTIPS.commission} /></span>
                 <button
                   className="text-[11px] text-accent hover:text-accent-hover whitespace-nowrap"
                   onClick={() => setCommissionPct(DEFAULT_COMMISSION)}
@@ -414,7 +413,7 @@ function Calculator({ userId, theme, toggleTheme }) {
 
             <div className="flex flex-col">
               <div className="flex justify-between items-baseline gap-2 min-h-[20px]">
-                <label className="label">Carta fiança</label>
+                <span className="label inline-flex items-center gap-1">Carta fiança<Tooltip text={TOOLTIPS.surety} /></span>
               </div>
               <div className="mt-2 relative">
                 <input
@@ -477,6 +476,27 @@ function Calculator({ userId, theme, toggleTheme }) {
               onSelect={setSelectedDiscountPct}
               hasInput={appraisal > 0}
               revenda={revenda}
+              pinned={pinnedPcts}
+              onTogglePin={(pct) => {
+                setPinnedPcts(prev => {
+                  if (prev.includes(pct)) return prev.filter(p => p !== pct)
+                  if (prev.length >= 3) {
+                    showToast('Máximo 3 cenários — desfixe um primeiro')
+                    return prev
+                  }
+                  return [...prev, pct]
+                })
+              }}
+            />
+          )}
+
+          {mode === 'scenarios' && pinnedPcts.length > 0 && (
+            <ScenarioComparator
+              scenarios={scenarios}
+              pinnedPcts={pinnedPcts}
+              revenda={revenda}
+              onClear={() => setPinnedPcts([])}
+              onUnpin={(pct) => setPinnedPcts(prev => prev.filter(p => p !== pct))}
             />
           )}
 
@@ -582,14 +602,28 @@ function Calculator({ userId, theme, toggleTheme }) {
             ) : (
               <div className="mt-5 space-y-5">
                 <div className="hero-stat">
-                  <div className="text-[11px] uppercase tracking-[0.08em] font-medium opacity-60">Custo inicial</div>
+                  <div className="text-[11px] uppercase tracking-[0.08em] font-medium opacity-60 flex items-center gap-1">
+                    Custo inicial
+                    <Tooltip text={TOOLTIPS.upfront} />
+                  </div>
                   <div className="text-3xl sm:text-[34px] font-semibold tabular-nums mt-1 leading-tight">{brl(calc.upfront)}</div>
+                  {calc.upfront > 0 && calc.bid > 0 && (
+                    <CompositionBar entry={calc.entry} commission={calc.commission} surety={calc.surety} upfront={calc.upfront} />
+                  )}
                   <div className="text-xs mt-1.5 opacity-60">Entrada + comissão + carta de fiança</div>
+                  {calc.upfront > 0 && calc.bid > 0 && (
+                    <div className="text-[11px] opacity-60 mt-0.5">
+                      ({(calc.upfront / calc.bid * 100).toFixed(1)}% do arremate sai no dia)
+                    </div>
+                  )}
                   {margin && (
                     <div className="text-xs mt-2 pt-2 border-t" style={{ borderColor: 'rgba(255,255,255,0.15)' }}>
-                      <span className="opacity-60">Margem estimada: </span>
+                      <span className="opacity-60 inline-flex items-center gap-1">
+                        Margem estimada
+                        <Tooltip text={TOOLTIPS.margin} />:
+                      </span>{' '}
                       <span className="font-semibold tabular-nums" style={{
-                        color: margin.value >= 0 ? 'rgb(var(--tier-excellent-fg))' : 'rgb(var(--tier-over-market-fg))',
+                        color: margin.value >= 0 ? 'rgb(var(--hero-positive))' : 'rgb(var(--hero-negative))',
                       }}>
                         {brl(margin.value)} ({margin.pct.toFixed(1)}%)
                       </span>
@@ -598,12 +632,12 @@ function Calculator({ userId, theme, toggleTheme }) {
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
-                  <MiniStat label="Entrada (25%)" value={brl(calc.entry)} />
-                  <MiniStat label={`Comissão (${pct(commissionPct)})`} value={brl(calc.commission)} />
+                  <MiniStat label="Entrada (25%)" value={brl(calc.entry)} tooltip={TOOLTIPS.entry} />
+                  <MiniStat label={`Comissão (${pct(commissionPct)})`} value={brl(calc.commission)} tooltip={TOOLTIPS.commission} />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
-                  <MiniStat label={`Carta de fiança (${pct(suretyPct)})`} value={brl(calc.surety)} />
-                  <MiniStat label="Saldo a parcelar" value={brl(calc.remaining)} />
+                  <MiniStat label={`Carta de fiança (${pct(suretyPct)})`} value={brl(calc.surety)} tooltip={TOOLTIPS.surety} />
+                  <MiniStat label="Saldo a parcelar" value={brl(calc.remaining)} tooltip={TOOLTIPS.remaining} />
                 </div>
 
                 <div className="divider" />
@@ -712,7 +746,7 @@ function Calculator({ userId, theme, toggleTheme }) {
   )
 }
 
-function ScenariosMatrix({ scenarios, selected, onSelect, hasInput, revenda = 0 }) {
+function ScenariosMatrix({ scenarios, selected, onSelect, hasInput, revenda = 0, pinned = [], onTogglePin }) {
   if (!hasInput) {
     return (
       <div className="rounded-xl bg-soft border border-line p-6 text-center text-sm text-fg-muted">
@@ -743,6 +777,7 @@ function ScenariosMatrix({ scenarios, selected, onSelect, hasInput, revenda = 0 
           <caption className="sr-only">Cenários de desconto</caption>
           <thead className="bg-soft text-fg-muted text-[11px] uppercase tracking-[0.06em]">
             <tr>
+              <th className="text-left px-2 py-2.5 w-8" aria-label="Fixar"></th>
               <th className="text-left px-3 py-2.5">%</th>
               <th className="text-right px-3 py-2.5">Arrematação</th>
               <th className="text-right px-3 py-2.5">Entrada</th>
@@ -773,6 +808,17 @@ function ScenariosMatrix({ scenarios, selected, onSelect, hasInput, revenda = 0 
                   style={tierStyle(row)}
                   className={`border-t border-line cursor-pointer transition-colors hover:brightness-95 ${isSel ? 'ring-2 ring-accent ring-inset' : ''}`}
                 >
+                  <td className="px-2 py-2">
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); onTogglePin?.(row.pct) }}
+                      aria-label={pinned.includes(row.pct) ? `Desfixar cenário ${row.pct}%` : `Fixar cenário ${row.pct}%`}
+                      aria-pressed={pinned.includes(row.pct)}
+                      className={`w-7 h-7 rounded-md inline-flex items-center justify-center transition ${pinned.includes(row.pct) ? 'bg-accent text-white' : 'opacity-50 hover:opacity-100'}`}
+                    >
+                      <Icon name="pin" className="w-3.5 h-3.5" />
+                    </button>
+                  </td>
                   <td className="px-3 py-2 font-medium">{row.pct}%</td>
                   <td className="px-3 py-2 text-right">{brl(row.bid)}</td>
                   <td className="px-3 py-2 text-right">{brl(row.entry)}</td>
@@ -809,8 +855,21 @@ function ScenariosMatrix({ scenarios, selected, onSelect, hasInput, revenda = 0 
               style={tierStyle(row)}
               className={`w-full text-left rounded-xl border border-line p-4 transition-colors hover:brightness-95 ${isSel ? 'ring-2 ring-accent' : ''}`}
             >
-              <div className="flex items-baseline justify-between mb-3">
-                <span className="text-2xl font-bold tabular-nums">{row.pct}%</span>
+              <div className="flex items-baseline justify-between mb-3 gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-2xl font-bold tabular-nums">{row.pct}%</span>
+                  <span
+                    role="button"
+                    tabIndex={0}
+                    onClick={(e) => { e.stopPropagation(); onTogglePin?.(row.pct) }}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); onTogglePin?.(row.pct) } }}
+                    aria-label={pinned.includes(row.pct) ? `Desfixar ${row.pct}%` : `Fixar ${row.pct}%`}
+                    aria-pressed={pinned.includes(row.pct)}
+                    className={`w-7 h-7 rounded-md inline-flex items-center justify-center transition ${pinned.includes(row.pct) ? 'bg-accent text-white' : 'opacity-50 hover:opacity-100'}`}
+                  >
+                    <Icon name="pin" className="w-3.5 h-3.5" />
+                  </span>
+                </div>
                 <span className="text-sm font-semibold tabular-nums">{brl(row.bid)}</span>
               </div>
               <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs">
@@ -926,11 +985,43 @@ function Field({ label, children }) {
   )
 }
 
-function MiniStat({ label, value }) {
+function MiniStat({ label, value, tooltip }) {
   return (
     <div className="mini-stat">
-      <div className="text-[10px] uppercase tracking-[0.08em] text-fg-muted font-medium">{label}</div>
+      <div className="text-[10px] uppercase tracking-[0.08em] text-fg-muted font-medium flex items-center gap-1">
+        {label}
+        {tooltip && <Tooltip text={tooltip} />}
+      </div>
       <div className="text-[15px] font-medium text-fg tabular-nums mt-0.5">{value}</div>
+    </div>
+  )
+}
+
+function CompositionBar({ entry, commission, surety, upfront }) {
+  if (upfront <= 0) return null
+  const pE = (entry / upfront) * 100
+  const pC = (commission / upfront) * 100
+  const pS = (surety / upfront) * 100
+  const segments = [
+    { label: 'Entrada',      value: entry,      pct: pE, bg: 'rgb(var(--on-elevated) / 0.92)' },
+    { label: 'Comissão',     value: commission, pct: pC, bg: 'rgb(var(--accent))' },
+    { label: 'Carta fiança', value: surety,     pct: pS, bg: 'rgb(var(--on-elevated) / 0.45)' },
+  ]
+  return (
+    <div
+      className="mt-3 h-2 w-full flex rounded-full overflow-hidden"
+      style={{ background: 'rgb(var(--on-elevated) / 0.15)' }}
+      role="img"
+      aria-label={`Composição: Entrada ${pE.toFixed(0)}%, Comissão ${pC.toFixed(0)}%, Carta de fiança ${pS.toFixed(0)}%`}
+    >
+      {segments.map((s, i) => s.pct > 0 && (
+        <span
+          key={i}
+          className="h-full block"
+          title={`${s.label}: R$ ${s.value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (${s.pct.toFixed(1)}%)`}
+          style={{ width: `${s.pct}%`, background: s.bg }}
+        />
+      ))}
     </div>
   )
 }
@@ -941,6 +1032,88 @@ function Row({ k, v, strong }) {
       <span className="text-fg-muted">{k}</span>
       <span className={strong ? 'font-semibold text-fg tabular-nums' : 'text-fg tabular-nums'}>{v}</span>
     </div>
+  )
+}
+
+function ScenarioComparator({ scenarios, pinnedPcts, revenda, onClear, onUnpin }) {
+  const rows = pinnedPcts
+    .map(p => scenarios.find(s => s.pct === p))
+    .filter(Boolean)
+  if (rows.length === 0) return null
+
+  const showMargin = revenda > 0
+
+  const marginPctFor = (row) => {
+    if (!showMargin) return null
+    const total = row.bid + row.commission + row.surety
+    return ((revenda - total) / revenda) * 100
+  }
+
+  const items = [
+    { key: 'bid', label: 'Arremate', fmt: (r) => brl(r.bid) },
+    { key: 'upfront', label: 'Custo inicial', fmt: (r) => brl(r.upfront), strong: true },
+    { key: 'installment', label: 'Parcela', fmt: (r) => brl(r.installment) },
+  ]
+
+  return (
+    <section className="card p-5 sm:p-6 mt-5">
+      <header className="flex items-center justify-between gap-2 mb-4">
+        <h3 className="text-base font-semibold text-fg">
+          Comparar cenários <span className="text-fg-muted font-normal">({rows.length}/3)</span>
+        </h3>
+        <button
+          type="button"
+          onClick={onClear}
+          className="text-xs text-fg-muted hover:text-fg transition-colors"
+        >
+          Limpar comparação
+        </button>
+      </header>
+
+      {/* Desktop: 3 colunas alinhadas. Mobile: scroll horizontal com snap */}
+      <div className="flex gap-3 md:gap-4 overflow-x-auto md:overflow-visible snap-x snap-mandatory md:snap-none -mx-2 md:mx-0 px-2 md:px-0">
+        {rows.map((row) => (
+          <article
+            key={row.pct}
+            className="flex-shrink-0 w-[260px] md:w-auto md:flex-1 snap-center rounded-xl border border-line p-4 relative"
+            style={{
+              background: `rgb(var(--tier-${row.tier}-bg))`,
+              color: `rgb(var(--tier-${row.tier}-fg))`,
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => onUnpin(row.pct)}
+              aria-label={`Remover cenário ${row.pct}% da comparação`}
+              className="absolute top-2 right-2 w-6 h-6 rounded-md inline-flex items-center justify-center opacity-60 hover:opacity-100"
+            >
+              <Icon name="close" className="w-3.5 h-3.5" />
+            </button>
+            <div className="flex flex-col gap-1.5 mb-3 pr-6">
+              <span className="text-3xl font-bold tabular-nums leading-none">{row.pct}%</span>
+              <span className="self-start"><ViabilityBadge tier={row.tier} /></span>
+            </div>
+            <dl className="space-y-1.5 text-sm">
+              {items.map(it => (
+                <div key={it.key} className="flex justify-between items-baseline gap-3">
+                  <dt className="opacity-70 text-xs">{it.label}</dt>
+                  <dd className={`tabular-nums text-right ${it.strong ? 'font-semibold' : ''}`}>{it.fmt(row)}</dd>
+                </div>
+              ))}
+              {showMargin && (() => {
+                const m = marginPctFor(row)
+                return (
+                  <div className="flex justify-between items-baseline gap-3 pt-1.5 border-t" style={{ borderColor: 'currentColor', opacity: 0.3 }}>
+                    <dt className="opacity-100 text-xs font-medium" style={{ opacity: 1 }}>Margem</dt>
+                    <dd className="tabular-nums text-right font-semibold">{m.toFixed(1)}%</dd>
+                  </div>
+                )
+              })()}
+            </dl>
+          </article>
+        ))}
+      </div>
+    </section>
   )
 }
 

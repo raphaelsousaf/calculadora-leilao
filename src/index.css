@@ -27,6 +27,11 @@
   --tier-over-market-bg: 254 226 226; /* red-100    */
   --tier-over-market-fg: 127  29  29; /* red-900    */
 
+  /* Cores para uso em hero-stat (bg escuro no light mode, claro no dark mode).
+     Flipam com o tema para manter contraste WCAG AA sobre superfície elevated. */
+  --hero-positive:  74 222 128; /* emerald-400 — claro, contrasta com hero escuro */
+  --hero-negative: 248 113 113; /* red-400 */
+
   --bg-grad-a: #ffffff;
   --bg-grad-b: #eef2ff;
   --meta:      #f5f5f7;
@@ -55,6 +60,10 @@ html.dark {
   --tier-marginal-fg:    253 186 116; /* orange-300 */
   --tier-over-market-bg:  69  10  10; /* red-950    */
   --tier-over-market-fg: 252 165 165; /* red-300    */
+
+  /* Em dark mode hero-stat fica claro → cores escuras */
+  --hero-positive:  22 163  74; /* emerald-600 — escuro, contrasta com hero claro */
+  --hero-negative: 220  38  38; /* red-600 */
 
   --bg-grad-a: #1a1a1c;
   --bg-grad-b: #14141a;

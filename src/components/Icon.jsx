@@ -33,6 +33,12 @@ export function Icon({ name, className = 'w-5 h-5' }) {
       return (<svg viewBox="0 0 24 24" className={className} {...common}><path d="M20 21a8 8 0 1 0-16 0"/><circle cx="12" cy="7" r="4"/></svg>)
     case 'chevron-down':
       return (<svg viewBox="0 0 24 24" className={className} {...common}><path d="m6 9 6 6 6-6"/></svg>)
+    case 'info':
+      return (<svg viewBox="0 0 24 24" className={className} {...common}><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>)
+    case 'pin':
+      return (<svg viewBox="0 0 24 24" className={className} {...common}><path d="M12 17v5"/><path d="M9 10.76V6a4 4 0 0 1 8 0v4.76l1 1.24v3H8v-3l1-1.24Z"/></svg>)
+    case 'pin-off':
+      return (<svg viewBox="0 0 24 24" className={className} {...common}><path d="m2 2 20 20"/><path d="M12 17v5"/><path d="M9 10.76V6a4 4 0 0 1 8 0v4.76l1 1.24v3H8v-3l1-1.24Z"/></svg>)
     default: return null
   }
 }
