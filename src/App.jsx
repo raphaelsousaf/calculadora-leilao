@@ -183,13 +183,8 @@ function Calculator({ userId, theme, toggleTheme }) {
 
   const switchMode = (next) => {
     if (next === mode) return
-    if (next === 'scenarios') {
-      setArremateStr('')
-      setSelectedDiscountPct(null)
-    } else {
-      setAppraisalStr('')
-      setSelectedDiscountPct(null)
-    }
+    // Preserva inputs de ambos os modos para o usuário poder ir e vir sem perder dados.
+    // Limpeza só pelo botão "Limpar".
     setMode(next)
   }
 
@@ -306,6 +301,7 @@ function Calculator({ userId, theme, toggleTheme }) {
     setRevendaStr('')
     setIntervaloDiasStr('30')
     setMeta(EMPTY_META)
+    setPinnedPcts([])
   }
 
   const subcats = CATEGORIES[meta.categoria] || []
