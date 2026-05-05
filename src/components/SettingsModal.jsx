@@ -1,5 +1,13 @@
 import { useState, useEffect } from 'react'
 import { Modal } from './Modal'
+import { Icon } from './Icon'
+import {
+  isPushSupported,
+  isIOS,
+  isStandalone,
+  getPermissionState,
+  requestPermission,
+} from '../lib/push'
 
 const DEFAULT_T1 = 70
 const DEFAULT_T2 = 85
@@ -152,8 +160,95 @@ export function SettingsModal({ open, onClose, settings, onSave }) {
           {errors.thresholds && <span className="text-sm text-red-500 mt-2 block">{errors.thresholds}</span>}
           {(errors.t1 || errors.t2 || errors.t3) && <span className="text-sm text-red-500 mt-2 block">Cada limite precisa ser um número entre 0 e 100.</span>}
         </div>
+
+        <NotificationSettings />
       </div>
     </Modal>
+  )
+}
+
+function NotificationSettings() {
+  const [permState, setPermState] = useState(getPermissionState)
+  const supported = isPushSupported()
+  const iosNonStandalone = isIOS() && !isStandalone()
+
+  const handleRequest = async () => {
+    const result = await requestPermission()
+    setPermState(result)
+  }
+
+  const handleTest = async () => {
+    if (Notification.permission !== 'granted') return
+    try {
+      const reg = await navigator.serviceWorker.ready
+      await reg.showNotification('Teste de notificação', {
+        body: 'As notificações estão funcionando!',
+        icon: '/icon-192.png',
+        tag: 'test',
+      })
+    } catch {
+      new Notification('Teste', { body: 'Notificações funcionando!' })
+    }
+  }
+
+  const STATUS_MAP = {
+    granted:     { label: 'Concedida', tone: 'text-emerald-700 dark:text-emerald-400', icon: 'check' },
+    denied:      { label: 'Bloqueada', tone: 'text-red-500', icon: 'bell-off' },
+    default:     { label: 'Não solicitada', tone: 'text-fg-muted', icon: 'bell' },
+    unsupported: { label: 'Não suportado', tone: 'text-fg-subtle', icon: 'bell-off' },
+  }
+
+  const status = STATUS_MAP[permState] || STATUS_MAP.unsupported
+
+  return (
+    <div className="border-t border-line pt-4">
+      <p className="text-sm font-medium text-fg mb-1">
+        <Icon name="bell" className="w-4 h-4 inline mr-1" />
+        Notificações
+      </p>
+      <p className="text-xs text-fg-muted mb-3">
+        Receba lembretes no celular quando um leilão estiver próximo.
+      </p>
+
+      <div className="flex items-center gap-2 mb-3">
+        <span className="text-xs text-fg-muted">Status:</span>
+        <span className={`text-xs font-medium ${status.tone}`}>
+          <Icon name={status.icon} className="w-3.5 h-3.5 inline mr-0.5" />
+          {status.label}
+        </span>
+      </div>
+
+      {!supported && (
+        <p className="text-xs text-fg-subtle">
+          Seu navegador não suporta notificações.
+        </p>
+      )}
+
+      {supported && iosNonStandalone && (
+        <p className="text-xs text-fg-muted">
+          No iPhone/iPad, instale o app na tela de início para receber notificações.
+        </p>
+      )}
+
+      {supported && !iosNonStandalone && permState === 'default' && (
+        <button onClick={handleRequest} className="btn-ghost text-xs">
+          <Icon name="bell" className="w-3.5 h-3.5" /> Ativar notificações
+        </button>
+      )}
+
+      {supported && permState === 'granted' && (
+        <button onClick={handleTest} className="btn-ghost text-xs">
+          <Icon name="bell" className="w-3.5 h-3.5" /> Enviar teste
+        </button>
+      )}
+
+      {supported && permState === 'denied' && (
+        <p className="text-xs text-fg-muted">
+          As notificações foram bloqueadas. Para reativar, acesse as configurações do navegador
+          {' → '} Permissões do site {' → '} Notificações.
+        </p>
+      )}
+    </div>
   )
 }
 
