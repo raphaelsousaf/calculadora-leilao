@@ -22,7 +22,7 @@ import { openPDF } from './lib/pdf'
 import { useTheme } from './lib/theme'
 import { useAuth } from './lib/auth'
 import {
-  fetchCalculations, insertCalculation, deleteCalculation, updateCalculationMeta,
+  fetchCalculations, insertCalculation, deleteCalculation, updateCalculation, updateCalculationMeta,
   fetchSettings, upsertSettings,
 } from './lib/data'
 import {
@@ -32,7 +32,7 @@ import {
 
 const EMPTY_META = {
   comprador: '', lote: '', processo: '',
-  categoria: '', subcategoria: '', descricao: '', dataLeilao: '',
+  categoria: '', subcategoria: '', descricao: '', dataLeilao: '', horaLeilao: '',
 }
 
 const SURETY_FALLBACK = 1
@@ -77,6 +77,7 @@ function Calculator({ userId, theme, toggleTheme }) {
   const [openWA, setOpenWA] = useState(false)
   const [openHistory, setOpenHistory] = useState(false)
   const [openSave, setOpenSave] = useState(false)
+  const [editingId, setEditingId] = useState(null)
   const [openProfile, setOpenProfile] = useState(false)
   const [toast, setToast] = useState('')
   const [reminderDraft, setReminderDraft] = useState({ enabled: true, leadTimes: ['7d', '1d', '0d'] })
@@ -227,19 +228,35 @@ function Calculator({ userId, theme, toggleTheme }) {
       const metaToSave = (days !== null && days >= 0)
         ? { ...meta, reminder: { ...reminderDraft } }
         : meta
-      const item = await insertCalculation(userId, { calc: payload, meta: metaToSave })
-      setHistory(h => [item, ...h])
+      let item
+      if (editingId) {
+        item = await updateCalculation(editingId, { calc: payload, meta: metaToSave })
+        setHistory(h => h.map(x => x.id === editingId ? item : x))
+        cancelLocal(editingId).catch(() => {})
+        setEditingId(null)
+      } else {
+        item = await insertCalculation(userId, { calc: payload, meta: metaToSave })
+        setHistory(h => [item, ...h])
+      }
       setOpenSave(false)
-      // Agenda push se ativado
       scheduleAllForItem(item).catch(() => {})
       const lt = metaToSave.reminder?.enabled && metaToSave.reminder.leadTimes?.length
-      showToast(lt ? `Cálculo salvo · lembretes ativos` : 'Cálculo salvo')
+      const baseMsg = editingId ? 'Cálculo atualizado' : 'Cálculo salvo'
+      showToast(lt ? `${baseMsg} · lembretes ativos` : baseMsg)
     } catch (err) {
       showToast(err?.message || 'Erro ao salvar')
     }
   }
 
+  const handleEdit = (item) => {
+    handleLoad(item)
+    setEditingId(item.id)
+    if (item.meta?.reminder) setReminderDraft(item.meta.reminder)
+    showToast('Editando cálculo · salve para sobrescrever')
+  }
+
   const handleLoad = (item) => {
+    setEditingId(null)
     const c = item.calc || {}
 
     // Legados
@@ -344,6 +361,7 @@ function Calculator({ userId, theme, toggleTheme }) {
     setIntervaloDiasStr('30')
     setMeta(EMPTY_META)
     setPinnedPcts([])
+    setEditingId(null)
   }
 
   const subcats = CATEGORIES[meta.categoria] || []
@@ -615,7 +633,10 @@ function Calculator({ userId, theme, toggleTheme }) {
                   <input className="input" value={meta.processo} onChange={e => updateMeta('processo', e.target.value)} placeholder="0000000-00.0000.0.00.0000" />
                 </Field>
                 <Field label="Data do leilão">
-                  <input type="date" className="input" value={meta.dataLeilao} onChange={e => updateMeta('dataLeilao', e.target.value)} />
+                  <div className="grid grid-cols-[1fr_auto] gap-2">
+                    <input type="date" className="input" value={meta.dataLeilao} onChange={e => updateMeta('dataLeilao', e.target.value)} />
+                    <input type="time" className="input" value={meta.horaLeilao} onChange={e => updateMeta('horaLeilao', e.target.value)} aria-label="Hora do leilão" />
+                  </div>
                 </Field>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -637,7 +658,7 @@ function Calculator({ userId, theme, toggleTheme }) {
             <button className="btn-ghost" onClick={handleReset}>Limpar</button>
             <div className="flex-1" />
             <button className="btn-ghost" onClick={() => setOpenSave(true)} disabled={!canAct}>
-              <Icon name="save" className="w-4 h-4" /> Salvar
+              <Icon name="save" className="w-4 h-4" /> {editingId ? 'Sobrescrever' : 'Salvar'}
             </button>
           </div>
         </section>
@@ -772,19 +793,23 @@ function Calculator({ userId, theme, toggleTheme }) {
       {/* Modals */}
       <SettingsModal open={openSettings} onClose={() => setOpenSettings(false)} settings={settings} onSave={handleSaveSettings} />
       <WhatsAppModal open={openWA} onClose={() => setOpenWA(false)} calc={calcForExport} meta={meta} settings={settings} />
-      <HistoryModal open={openHistory} onClose={() => setOpenHistory(false)} items={history} onLoad={handleLoad} onDelete={handleDelete} />
+      <HistoryModal open={openHistory} onClose={() => setOpenHistory(false)} items={history} onLoad={handleLoad} onEdit={handleEdit} onDelete={handleDelete} />
       <ProfileModal open={openProfile} onClose={() => setOpenProfile(false)} onToast={showToast} />
 
       <Modal
-        open={openSave} onClose={() => setOpenSave(false)} title="Salvar cálculo"
+        open={openSave} onClose={() => setOpenSave(false)} title={editingId ? 'Editar cálculo' : 'Salvar cálculo'}
         footer={
           <>
             <button className="btn-ghost" onClick={() => setOpenSave(false)}>Cancelar</button>
-            <button className="btn-primary" onClick={handleSave}><Icon name="check" className="w-4 h-4" /> Salvar</button>
+            <button className="btn-primary" onClick={handleSave}>
+              <Icon name="check" className="w-4 h-4" /> {editingId ? 'Sobrescrever' : 'Salvar'}
+            </button>
           </>
         }
       >
-        <p className="text-sm text-fg-muted mb-4">Revise as informações antes de salvar no histórico.</p>
+        <p className="text-sm text-fg-muted mb-4">
+          {editingId ? 'Os dados originais serão sobrescritos.' : 'Revise as informações antes de salvar no histórico.'}
+        </p>
         <div className="rounded-xl bg-soft p-4 space-y-1.5 text-sm border border-line">
           <Row k="Modo" v={mode === 'scenarios' ? `Cenários (${selectedDiscountPct ?? '—'}%)` : 'Arremate fixo'} />
           <Row k="Arremate" v={brl(calc.bid)} />
@@ -1001,13 +1026,13 @@ function UserMenu({ theme, onToggleTheme, onSettings, onProfile }) {
           className="absolute right-0 mt-2 w-52 rounded-xl border border-line shadow-soft overflow-hidden z-40"
           style={{ background: 'rgb(var(--surface))' }}
         >
+          <MenuItem icon="user" label="Perfil" onClick={() => pick(onProfile)} />
+          <MenuItem icon="settings" label="Configurações" onClick={() => pick(onSettings)} />
           <MenuItem
             icon={theme === 'dark' ? 'sun' : 'moon'}
             label={theme === 'dark' ? 'Modo claro' : 'Modo escuro'}
             onClick={() => pick(onToggleTheme)}
           />
-          <MenuItem icon="settings" label="Configurações" onClick={() => pick(onSettings)} />
-          <MenuItem icon="user" label="Perfil" onClick={() => pick(onProfile)} />
         </div>
       )}
     </div>

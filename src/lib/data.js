@@ -95,3 +95,14 @@ export async function updateCalculationMeta(id, meta) {
     .eq('id', id)
   if (error) throw error
 }
+
+export async function updateCalculation(id, { calc, meta }) {
+  const { data, error } = await supabase
+    .from('calculations')
+    .update({ calc, meta })
+    .eq('id', id)
+    .select('id, saved_at')
+    .single()
+  if (error) throw error
+  return { id: data.id, savedAt: data.saved_at, calc, meta }
+}

@@ -22,7 +22,7 @@ function tabCount(items, id) {
   return filterByTab(items, id).length
 }
 
-export function HistoryModal({ open, onClose, items, onLoad, onDelete }) {
+export function HistoryModal({ open, onClose, items, onLoad, onEdit, onDelete }) {
   const [tab, setTab] = useState('all')
 
   const sorted = useMemo(() => [...items].sort(compareForHistory), [items])
@@ -99,15 +99,27 @@ export function HistoryModal({ open, onClose, items, onLoad, onDelete }) {
                         {[
                           brl(item.calc.bid),
                           item.meta?.categoria && [item.meta.categoria, item.meta.subcategoria].filter(Boolean).join(' / '),
-                          item.meta?.dataLeilao && formatDateBR(item.meta.dataLeilao),
-                          new Date(item.savedAt).toLocaleDateString('pt-BR'),
+                          item.meta?.dataLeilao && (
+                            'Leilão ' + formatDateBR(item.meta.dataLeilao) + (item.meta?.horaLeilao ? ` ${item.meta.horaLeilao}` : '')
+                          ),
+                          'salvo em ' + new Date(item.savedAt).toLocaleDateString('pt-BR'),
                         ].filter(Boolean).join(' · ')}
                       </div>
+                      {item.meta?.descricao && (
+                        <div className="text-xs text-fg-subtle mt-0.5 truncate italic">
+                          {item.meta.descricao}
+                        </div>
+                      )}
                     </div>
                     <button
                       className="btn-ghost !py-1.5 !px-3 text-xs"
                       onClick={() => { onLoad?.(item); onClose?.() }}
                     >Carregar</button>
+                    <button
+                      className="btn-ghost !py-1.5 !px-3 text-xs"
+                      onClick={() => { onEdit?.(item); onClose?.() }}
+                      title="Editar e sobrescrever"
+                    >Editar</button>
                     <button
                       className="p-2 rounded-full text-fg-subtle hover:text-red-500 hover:bg-red-500/10 transition-colors"
                       onClick={() => { if (confirm('Remover este cálculo?')) onDelete?.(item.id) }}
