@@ -1,6 +1,8 @@
 import { Modal } from './Modal'
 import { Icon } from './Icon'
+import { StatusChip } from './StatusChip'
 import { brl, formatDateBR } from '../lib/format'
+import { getAuctionStatus, getDaysUntil, getStatusChip } from '../lib/reminder'
 
 export function HistoryModal({ open, onClose, items, onLoad, onDelete }) {
   return (
@@ -21,6 +23,9 @@ export function HistoryModal({ open, onClose, items, onLoad, onDelete }) {
             const badgeClass = isScenarios
               ? 'bg-blue-500/10 text-blue-600'
               : 'bg-fg-subtle/10 text-fg-muted'
+            const status = getAuctionStatus(item.meta)
+            const days = getDaysUntil(item.meta?.dataLeilao)
+            const chip = getStatusChip(status, days)
             return (
             <li key={item.id} className="px-5 sm:px-6 py-3.5 flex items-center gap-3 hover:bg-soft transition-colors">
               <div className="flex-1 min-w-0">
@@ -30,6 +35,7 @@ export function HistoryModal({ open, onClose, items, onLoad, onDelete }) {
                   </span>
                   {item.meta?.lote && <span className="text-xs text-fg-muted">Lote {item.meta.lote}</span>}
                   <span className={`text-xs px-2 py-0.5 rounded-full ${badgeClass}`}>{badgeText}</span>
+                  <StatusChip chip={chip} />
                 </div>
                 <div className="text-xs text-fg-muted mt-0.5 truncate">
                   {[

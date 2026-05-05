@@ -39,6 +39,16 @@ export function Icon({ name, className = 'w-5 h-5' }) {
       return (<svg viewBox="0 0 24 24" className={className} {...common}><path d="M12 17v5"/><path d="M9 10.76V6a4 4 0 0 1 8 0v4.76l1 1.24v3H8v-3l1-1.24Z"/></svg>)
     case 'pin-off':
       return (<svg viewBox="0 0 24 24" className={className} {...common}><path d="m2 2 20 20"/><path d="M12 17v5"/><path d="M9 10.76V6a4 4 0 0 1 8 0v4.76l1 1.24v3H8v-3l1-1.24Z"/></svg>)
+    case 'clock':
+      return (<svg viewBox="0 0 24 24" className={className} {...common}><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>)
+    case 'flag':
+      return (<svg viewBox="0 0 24 24" className={className} {...common}><path d="M4 21V4M4 4h13l-2 4 2 4H4"/></svg>)
+    case 'x':
+      return (<svg viewBox="0 0 24 24" className={className} {...common}><path d="M18 6 6 18M6 6l12 12"/></svg>)
+    case 'bell':
+      return (<svg viewBox="0 0 24 24" className={className} {...common}><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>)
+    case 'bell-off':
+      return (<svg viewBox="0 0 24 24" className={className} {...common}><path d="M13.7 4.3A6 6 0 0 1 18 8c0 7 3 9 3 9H8"/><path d="M6 8c0-.4 0-.7.1-1M2 2l20 20"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>)
     default: return null
   }
 }

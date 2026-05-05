@@ -170,7 +170,15 @@ html.dark {
 
 @keyframes fadeIn  { from { opacity: 0 } to { opacity: 1 } }
 @keyframes scaleIn { from { opacity: 0; transform: translateY(8px) scale(0.98) } to { opacity: 1; transform: translateY(0) scale(1) } }
+@keyframes chipPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgb(245 158 11 / 0.45); }
+  50%      { box-shadow: 0 0 0 6px rgb(245 158 11 / 0); }
+}
 .anim-fade  { animation: fadeIn  0.2s ease-out; }
 .anim-scale { animation: scaleIn 0.25s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.chip-pulse { animation: chipPulse 1.8s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .chip-pulse { animation: none; }
+}
 
 @media print { body { background: white !important; } .no-print { display: none !important; } }
