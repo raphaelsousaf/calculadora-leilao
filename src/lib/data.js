@@ -87,3 +87,11 @@ export async function deleteCalculation(id) {
   const { error } = await supabase.from('calculations').delete().eq('id', id)
   if (error) throw error
 }
+
+export async function updateCalculationMeta(id, meta) {
+  const { error } = await supabase
+    .from('calculations')
+    .update({ meta })
+    .eq('id', id)
+  if (error) throw error
+}

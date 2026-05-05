@@ -6,6 +6,12 @@ import { Modal } from './components/Modal'
 import { SettingsModal } from './components/SettingsModal'
 import { WhatsAppModal } from './components/WhatsAppModal'
 import { HistoryModal } from './components/HistoryModal'
+import { ReminderToggle } from './components/ReminderToggle'
+import { RemindersBell } from './components/RemindersBell'
+import { RemindersBanner } from './components/RemindersBanner'
+import { OutcomeCard } from './components/OutcomeCard'
+import { getDaysUntil, getPendingOutcomes } from './lib/reminder'
+import { scheduleAllForItem, rescheduleAll, cancelLocal } from './lib/push'
 import { ProfileModal } from './components/ProfileModal'
 import { AuthScreen } from './components/AuthScreen'
 import { calculate } from './lib/calc'
@@ -16,7 +22,7 @@ import { openPDF } from './lib/pdf'
 import { useTheme } from './lib/theme'
 import { useAuth } from './lib/auth'
 import {
-  fetchCalculations, insertCalculation, deleteCalculation,
+  fetchCalculations, insertCalculation, deleteCalculation, updateCalculationMeta,
   fetchSettings, upsertSettings,
 } from './lib/data'
 import {
@@ -73,6 +79,8 @@ function Calculator({ userId, theme, toggleTheme }) {
   const [openSave, setOpenSave] = useState(false)
   const [openProfile, setOpenProfile] = useState(false)
   const [toast, setToast] = useState('')
+  const [reminderDraft, setReminderDraft] = useState({ enabled: true, leadTimes: ['7d', '1d', '0d'] })
+  const [bannerDismissed, setBannerDismissed] = useState(false)
 
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(''), 2200) }
 
@@ -87,6 +95,8 @@ function Calculator({ userId, theme, toggleTheme }) {
         if (cancelled) return
         setHistory(h)
         setSettings(s || {})
+        // Reagenda notificações push persistidas no IndexedDB
+        rescheduleAll().catch(() => {})
       })
       .catch(err => showToast(err?.message || 'Erro ao carregar dados'))
     return () => { cancelled = true }
@@ -213,10 +223,17 @@ function Calculator({ userId, theme, toggleTheme }) {
   const handleSave = async () => {
     try {
       const payload = buildSavePayload()
-      const item = await insertCalculation(userId, { calc: payload, meta })
+      const days = getDaysUntil(meta.dataLeilao)
+      const metaToSave = (days !== null && days >= 0)
+        ? { ...meta, reminder: { ...reminderDraft } }
+        : meta
+      const item = await insertCalculation(userId, { calc: payload, meta: metaToSave })
       setHistory(h => [item, ...h])
       setOpenSave(false)
-      showToast('Cálculo salvo')
+      // Agenda push se ativado
+      scheduleAllForItem(item).catch(() => {})
+      const lt = metaToSave.reminder?.enabled && metaToSave.reminder.leadTimes?.length
+      showToast(lt ? `Cálculo salvo · lembretes ativos` : 'Cálculo salvo')
     } catch (err) {
       showToast(err?.message || 'Erro ao salvar')
     }
@@ -253,9 +270,34 @@ function Calculator({ userId, theme, toggleTheme }) {
     showToast('Cálculo carregado')
   }
 
+  const handleOutcomeAnswer = async (item, answer) => {
+    try {
+      let nextMeta
+      if (answer.snooze) {
+        nextMeta = { ...item.meta, outcomeAskedAt: new Date().toISOString() }
+      } else if (answer.outcome === 'won') {
+        nextMeta = { ...item.meta, outcome: 'won', finalBid: answer.finalBid ?? null, outcomeAskedAt: new Date().toISOString() }
+      } else if (answer.outcome === 'lost') {
+        nextMeta = { ...item.meta, outcome: 'lost', outcomeAskedAt: new Date().toISOString() }
+      } else {
+        return
+      }
+      await updateCalculationMeta(item.id, nextMeta)
+      setHistory(h => h.map(x => x.id === item.id ? { ...x, meta: nextMeta } : x))
+      if (answer.outcome) cancelLocal(item.id).catch(() => {})
+      if (answer.outcome === 'won') showToast('Marcado como arrematado')
+      else if (answer.outcome === 'lost') showToast('Marcado como não arrematado')
+    } catch (err) {
+      showToast(err?.message || 'Erro ao atualizar')
+    }
+  }
+
+  const pendingOutcomes = useMemo(() => getPendingOutcomes(history), [history])
+
   const handleDelete = async (id) => {
     try {
       await deleteCalculation(id)
+      cancelLocal(id).catch(() => {})
       setHistory(h => h.filter(x => x.id !== id))
     } catch (err) {
       showToast(err?.message || 'Erro ao excluir')
@@ -322,6 +364,7 @@ function Calculator({ userId, theme, toggleTheme }) {
             </div>
           </div>
           <div className="flex items-center gap-1">
+            <RemindersBell items={history} onOpenItem={(item) => { handleLoad(item); }} />
             <IconBtn label="Histórico" onClick={() => setOpenHistory(true)} icon="history" />
             <UserMenu
               theme={theme}
@@ -332,6 +375,26 @@ function Calculator({ userId, theme, toggleTheme }) {
           </div>
         </div>
       </header>
+
+      {!bannerDismissed && (
+        <RemindersBanner
+          items={history}
+          onOpenItem={(item) => { handleLoad(item); setBannerDismissed(true) }}
+          onDismiss={() => setBannerDismissed(true)}
+        />
+      )}
+
+      {pendingOutcomes.length > 0 && (
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 mt-4 space-y-2">
+          {pendingOutcomes.slice(0, 3).map(it => (
+            <OutcomeCard
+              key={it.id}
+              item={it}
+              onAnswer={(answer) => handleOutcomeAnswer(it, answer)}
+            />
+          ))}
+        </div>
+      )}
 
       <main className={`mx-auto px-4 sm:px-6 pt-6 sm:pt-10 grid lg:grid-cols-[minmax(0,1.4fr)_minmax(280px,1fr)] gap-5 sm:gap-7 ${mode === 'scenarios' ? 'max-w-7xl' : 'max-w-6xl'}`}>
         {/* Inputs */}
@@ -730,6 +793,11 @@ function Calculator({ userId, theme, toggleTheme }) {
           {meta.comprador && <Row k="Comprador" v={meta.comprador} />}
           {meta.lote && <Row k="Lote" v={meta.lote} />}
         </div>
+        <ReminderToggle
+          value={reminderDraft}
+          onChange={setReminderDraft}
+          dataLeilao={meta.dataLeilao}
+        />
       </Modal>
 
       {toast && (
