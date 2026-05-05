@@ -129,7 +129,16 @@ export async function scheduleLocal(item, leadTime) {
 
   const fireDate = new Date(auctionDate)
   fireDate.setDate(fireDate.getDate() - leadDays)
-  fireDate.setHours(8, 0, 0, 0) // Notifica às 8h da manhã
+  // No dia do leilão: notifica 30min antes da hora cadastrada (se houver).
+  // Em dias anteriores ou sem hora: 8h da manhã.
+  const hora = item.meta?.horaLeilao
+  if (leadDays === 0 && hora && /^\d{2}:\d{2}/.test(hora)) {
+    const [h, m] = hora.split(':').map(Number)
+    fireDate.setHours(h, m, 0, 0)
+    fireDate.setMinutes(fireDate.getMinutes() - 30)
+  } else {
+    fireDate.setHours(8, 0, 0, 0)
+  }
 
   const now = Date.now()
   const fireMs = fireDate.getTime()
@@ -138,10 +147,13 @@ export async function scheduleLocal(item, leadTime) {
   const key = makeKey(item.id, leadTime)
   const label = item.meta?.comprador || 'Leilão'
   const lote = item.meta?.lote ? ` · Lote ${item.meta.lote}` : ''
+  const horaSuffix = item.meta?.horaLeilao && /^\d{2}:\d{2}/.test(item.meta.horaLeilao)
+    ? ` às ${item.meta.horaLeilao.slice(0, 5)}`
+    : ''
   const dayLabel =
-    leadDays === 0 ? 'é HOJE' :
-    leadDays === 1 ? 'é amanhã' :
-    `em ${leadDays} dias`
+    leadDays === 0 ? `é HOJE${horaSuffix}` :
+    leadDays === 1 ? `é amanhã${horaSuffix}` :
+    `em ${leadDays} dias${horaSuffix}`
 
   const entry = {
     key,

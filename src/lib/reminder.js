@@ -46,7 +46,16 @@ export function getAuctionStatus(meta, now = new Date()) {
   const days = getDaysUntil(meta.dataLeilao, now)
   if (days === null) return 'none'
   if (days > 0) return 'upcoming'
-  if (days === 0) return 'today'
+  if (days === 0) {
+    // Se há hora cadastrada e ela já passou, considera encerrado
+    const hora = meta.horaLeilao
+    if (hora && /^\d{2}:\d{2}/.test(hora)) {
+      const [h, m] = hora.split(':').map(Number)
+      const auctionMs = startOfDay(now).getTime() + (h * 60 + m) * 60_000
+      if (now.getTime() >= auctionMs) return 'past_pending'
+    }
+    return 'today'
+  }
   return 'past_pending'
 }
 
