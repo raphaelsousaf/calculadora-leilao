@@ -11,6 +11,7 @@ import { RemindersBell } from './components/RemindersBell'
 import { RemindersBanner } from './components/RemindersBanner'
 import { OutcomeCard } from './components/OutcomeCard'
 import { getDaysUntil, getPendingOutcomes } from './lib/reminder'
+import { scheduleAllForItem, rescheduleAll } from './lib/push'
 import { ProfileModal } from './components/ProfileModal'
 import { AuthScreen } from './components/AuthScreen'
 import { calculate } from './lib/calc'
@@ -94,6 +95,8 @@ function Calculator({ userId, theme, toggleTheme }) {
         if (cancelled) return
         setHistory(h)
         setSettings(s || {})
+        // Reagenda notificações push persistidas no IndexedDB
+        rescheduleAll().catch(() => {})
       })
       .catch(err => showToast(err?.message || 'Erro ao carregar dados'))
     return () => { cancelled = true }
@@ -222,11 +225,13 @@ function Calculator({ userId, theme, toggleTheme }) {
       const payload = buildSavePayload()
       const days = getDaysUntil(meta.dataLeilao)
       const metaToSave = (days !== null && days >= 0)
-        ? { ...meta, reminder: { ...reminderDraft, pushEnabled: false } }
+        ? { ...meta, reminder: { ...reminderDraft } }
         : meta
       const item = await insertCalculation(userId, { calc: payload, meta: metaToSave })
       setHistory(h => [item, ...h])
       setOpenSave(false)
+      // Agenda push se ativado
+      scheduleAllForItem(item).catch(() => {})
       const lt = metaToSave.reminder?.enabled && metaToSave.reminder.leadTimes?.length
       showToast(lt ? `Cálculo salvo · lembretes ativos` : 'Cálculo salvo')
     } catch (err) {
