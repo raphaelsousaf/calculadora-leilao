@@ -11,7 +11,7 @@ import { RemindersBell } from './components/RemindersBell'
 import { RemindersBanner } from './components/RemindersBanner'
 import { OutcomeCard } from './components/OutcomeCard'
 import { getDaysUntil, getPendingOutcomes } from './lib/reminder'
-import { scheduleAllForItem, rescheduleAll } from './lib/push'
+import { scheduleAllForItem, rescheduleAll, cancelLocal } from './lib/push'
 import { ProfileModal } from './components/ProfileModal'
 import { AuthScreen } from './components/AuthScreen'
 import { calculate } from './lib/calc'
@@ -284,6 +284,7 @@ function Calculator({ userId, theme, toggleTheme }) {
       }
       await updateCalculationMeta(item.id, nextMeta)
       setHistory(h => h.map(x => x.id === item.id ? { ...x, meta: nextMeta } : x))
+      if (answer.outcome) cancelLocal(item.id).catch(() => {})
       if (answer.outcome === 'won') showToast('Marcado como arrematado')
       else if (answer.outcome === 'lost') showToast('Marcado como não arrematado')
     } catch (err) {
@@ -296,6 +297,7 @@ function Calculator({ userId, theme, toggleTheme }) {
   const handleDelete = async (id) => {
     try {
       await deleteCalculation(id)
+      cancelLocal(id).catch(() => {})
       setHistory(h => h.filter(x => x.id !== id))
     } catch (err) {
       showToast(err?.message || 'Erro ao excluir')
