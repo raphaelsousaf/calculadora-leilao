@@ -4,6 +4,15 @@ import App from './App.jsx'
 import { AuthProvider } from './lib/auth'
 import './index.css'
 
+// Registra Service Worker para PWA (apenas em produção)
+if ('serviceWorker' in navigator && import.meta.env.PROD) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker
+      .register('/sw.js')
+      .catch(err => console.warn('SW registration falhou:', err))
+  })
+}
+
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <AuthProvider>
