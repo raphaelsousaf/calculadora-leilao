@@ -6,6 +6,8 @@ import { Modal } from './components/Modal'
 import { SettingsModal } from './components/SettingsModal'
 import { WhatsAppModal } from './components/WhatsAppModal'
 import { HistoryModal } from './components/HistoryModal'
+import { ReminderToggle } from './components/ReminderToggle'
+import { getDaysUntil } from './lib/reminder'
 import { ProfileModal } from './components/ProfileModal'
 import { AuthScreen } from './components/AuthScreen'
 import { calculate } from './lib/calc'
@@ -73,6 +75,7 @@ function Calculator({ userId, theme, toggleTheme }) {
   const [openSave, setOpenSave] = useState(false)
   const [openProfile, setOpenProfile] = useState(false)
   const [toast, setToast] = useState('')
+  const [reminderDraft, setReminderDraft] = useState({ enabled: true, leadTimes: ['7d', '1d', '0d'] })
 
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(''), 2200) }
 
@@ -213,10 +216,15 @@ function Calculator({ userId, theme, toggleTheme }) {
   const handleSave = async () => {
     try {
       const payload = buildSavePayload()
-      const item = await insertCalculation(userId, { calc: payload, meta })
+      const days = getDaysUntil(meta.dataLeilao)
+      const metaToSave = (days !== null && days >= 0)
+        ? { ...meta, reminder: { ...reminderDraft, pushEnabled: false } }
+        : meta
+      const item = await insertCalculation(userId, { calc: payload, meta: metaToSave })
       setHistory(h => [item, ...h])
       setOpenSave(false)
-      showToast('Cálculo salvo')
+      const lt = metaToSave.reminder?.enabled && metaToSave.reminder.leadTimes?.length
+      showToast(lt ? `Cálculo salvo · lembretes ativos` : 'Cálculo salvo')
     } catch (err) {
       showToast(err?.message || 'Erro ao salvar')
     }
@@ -730,6 +738,11 @@ function Calculator({ userId, theme, toggleTheme }) {
           {meta.comprador && <Row k="Comprador" v={meta.comprador} />}
           {meta.lote && <Row k="Lote" v={meta.lote} />}
         </div>
+        <ReminderToggle
+          value={reminderDraft}
+          onChange={setReminderDraft}
+          dataLeilao={meta.dataLeilao}
+        />
       </Modal>
 
       {toast && (
