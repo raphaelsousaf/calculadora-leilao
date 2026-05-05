@@ -7,6 +7,8 @@ import { SettingsModal } from './components/SettingsModal'
 import { WhatsAppModal } from './components/WhatsAppModal'
 import { HistoryModal } from './components/HistoryModal'
 import { ReminderToggle } from './components/ReminderToggle'
+import { RemindersBell } from './components/RemindersBell'
+import { RemindersBanner } from './components/RemindersBanner'
 import { getDaysUntil } from './lib/reminder'
 import { ProfileModal } from './components/ProfileModal'
 import { AuthScreen } from './components/AuthScreen'
@@ -76,6 +78,7 @@ function Calculator({ userId, theme, toggleTheme }) {
   const [openProfile, setOpenProfile] = useState(false)
   const [toast, setToast] = useState('')
   const [reminderDraft, setReminderDraft] = useState({ enabled: true, leadTimes: ['7d', '1d', '0d'] })
+  const [bannerDismissed, setBannerDismissed] = useState(false)
 
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(''), 2200) }
 
@@ -330,6 +333,7 @@ function Calculator({ userId, theme, toggleTheme }) {
             </div>
           </div>
           <div className="flex items-center gap-1">
+            <RemindersBell items={history} onOpenItem={(item) => { handleLoad(item); }} />
             <IconBtn label="Histórico" onClick={() => setOpenHistory(true)} icon="history" />
             <UserMenu
               theme={theme}
@@ -340,6 +344,14 @@ function Calculator({ userId, theme, toggleTheme }) {
           </div>
         </div>
       </header>
+
+      {!bannerDismissed && (
+        <RemindersBanner
+          items={history}
+          onOpenItem={(item) => { handleLoad(item); setBannerDismissed(true) }}
+          onDismiss={() => setBannerDismissed(true)}
+        />
+      )}
 
       <main className={`mx-auto px-4 sm:px-6 pt-6 sm:pt-10 grid lg:grid-cols-[minmax(0,1.4fr)_minmax(280px,1fr)] gap-5 sm:gap-7 ${mode === 'scenarios' ? 'max-w-7xl' : 'max-w-6xl'}`}>
         {/* Inputs */}
